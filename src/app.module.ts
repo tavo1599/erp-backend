@@ -48,7 +48,7 @@ import { PermisosModule } from './permisos/permisos.module';
         password: configService.get<string>('DB_PASSWORD'),
         database: configService.get<string>('DB_NAME'),
         autoLoadEntities: true, // Cargará las tablas automáticamente
-        synchronize: true, // ¡OJO! Solo para desarrollo. Crea las tablas en la BD automáticamente.
+        synchronize: configService.get<string>('NODE_ENV') !== 'production',
       }),
     }),
     
