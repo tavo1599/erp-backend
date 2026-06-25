@@ -21,6 +21,12 @@ export class Producto {
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   precio_venta: number;
 
+  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
+  precio_compra: number;
+
+  @Column({ type: 'decimal', precision: 10, scale: 3, nullable: true })
+peso_unitario: number | null; // en kilogramos (para guías de remisión)
+
   @Column({ type: 'varchar', length: 2, default: '10' }) // 10 = Gravado con IGV
   tipo_igv: string;
 
@@ -29,6 +35,9 @@ export class Producto {
 
   @Column({ type: 'boolean', default: true })
   estado: boolean;
+  
+  @Column({ type: 'varchar', default: 'BIEN' })
+  tipo_bien_servicio: string; // 'BIEN' o 'SERVICIO'
 
   @CreateDateColumn()
   created_at: Date;

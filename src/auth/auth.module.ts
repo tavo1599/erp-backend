@@ -7,10 +7,11 @@ import { AuthController } from './auth.controller';
 import { Usuario } from '../usuarios/entities/usuario.entity';
 import { EmpresaUsuario } from '../usuarios/entities/empresa-usuario.entity';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { Empresa } from '../empresas/entities/empresa.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Usuario, EmpresaUsuario]),
+    TypeOrmModule.forFeature([Usuario, EmpresaUsuario, Empresa,]),
     // Usamos registerAsync para inyectar las variables de entorno
     JwtModule.registerAsync({
       imports: [ConfigModule],

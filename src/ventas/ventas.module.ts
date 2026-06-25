@@ -4,20 +4,31 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { HttpModule } from '@nestjs/axios';
 import { VentasService } from './ventas.service';
 import { VentasController } from './ventas.controller';
+import { PdfService } from './pdf.service';
 import { Venta } from './entities/venta.entity';
 import { VentaDetalle } from './entities/venta-detalle.entity';
-import { KardexModule } from '../kardex/kardex.module'; // Lo importamos para descontar stock luego
+import { KardexModule } from '../kardex/kardex.module';
 import { Empresa } from '../empresas/entities/empresa.entity';
 import { SerieComprobante } from './entities/serie-comprobante.entity';
+import { Producto } from '../productos/entities/producto.entity';
+import { Cliente } from '../clientes/entities/cliente.entity';
+import { FinanzasModule } from '../finanzas/finanzas.module';
+import { BajasModule } from '../bajas/bajas.module';
+import { VentaPago } from './entities/venta-pago.entity';
+import { AuditoriaModule } from '../auditoria/auditoria.module';
+import { PermisosModule } from '../permisos/permisos.module';
 
 @Module({
-  // Importamos las dos tablas de ventas y el módulo de Kardex
   imports: [
-    TypeOrmModule.forFeature([Venta, VentaDetalle, SerieComprobante, Empresa]),
+    TypeOrmModule.forFeature([Venta, VentaDetalle, VentaPago, SerieComprobante, Empresa, Producto, Cliente]), // ← AGREGAR Producto
     KardexModule,
-    HttpModule
+    HttpModule,
+    FinanzasModule,
+    BajasModule,
+    AuditoriaModule,
+    PermisosModule,
   ],
   controllers: [VentasController],
-  providers: [VentasService],
+  providers: [VentasService, PdfService],
 })
 export class VentasModule {}
