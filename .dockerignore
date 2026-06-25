@@ -1,0 +1,53 @@
+# Dependencias
+node_modules
+npm-debug.log
+
+# Compilados
+dist
+build
+
+# Git
+.git
+.gitignore
+
+# Variables de entorno (van por Dokploy)
+.env
+.env.local
+.env.production
+.env.development
+
+# IDE
+.vscode
+.idea
+*.swp
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs
+
+# Documentación (no necesaria en Docker)
+README.md
+docs
+
+# Tests
+test
+*.spec.ts
+*.test.ts
+coverage
+
+# Uploads (se montan como volumen en producción)
+uploads/logos/*
+!uploads/logos/.gitkeep
+
+# Certificados (NO subir, se montan separados)
+*.pfx
+*.p12
+*.password
+
+# Archivos temporales
+tmp
+temp
