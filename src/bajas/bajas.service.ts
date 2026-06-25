@@ -69,9 +69,10 @@ export class BajasService {
 
     let sunatData: any = null;
     let ticket: string | null = null;
+    const motorJavaUrl = process.env.JAVA_MOTOR_URL || 'http://localhost:8089';
     try {
       const resp = await firstValueFrom(
-        this.httpService.post('http://localhost:8089/api/bajas/enviar', payloadJava),
+        this.httpService.post('${motorJavaUrl}/api/bajas/enviar', payloadJava),
       );
       sunatData = resp.data;
       ticket = sunatData?.ticket || null;
@@ -144,11 +145,12 @@ export class BajasService {
     };
 
     let sunatData: any = null;
+    const motorJavaUrl = process.env.JAVA_MOTOR_URL || 'http://localhost:8089';
     try {
       // El ticket va como query param, la empresa en el body
       const resp = await firstValueFrom(
         this.httpService.post(
-          `http://localhost:8089/api/bajas/estado?ticket=${baja.ticket}`,
+          `${motorJavaUrl}/api/bajas/estado?ticket=${baja.ticket}`,
           empresaPayload,
           { timeout: 20000 }, // 20 segundos
         ),

@@ -91,9 +91,10 @@ const payloadJava = {
 
     let sunatData: any = null;
     let ticket: string | null = null;
+    const motorJavaUrl = process.env.JAVA_MOTOR_URL || 'http://localhost:8089';
     try {
       const resp = await firstValueFrom(
-        this.httpService.post('http://localhost:8089/api/resumenes/enviar', payloadJava),
+        this.httpService.post('${motorJavaUrl}/api/resumenes/enviar', payloadJava),
       );
       sunatData = resp.data;
       ticket = sunatData?.ticket || null;
@@ -163,18 +164,19 @@ const payloadJava = {
     };
 
     let sunatData: any = null;
-    try {
-      const resp = await firstValueFrom(
-        this.httpService.post(
-          `http://localhost:8089/api/resumenes/estado?ticket=${resumen.ticket}`,
-          empresaPayload,
-          { timeout: 20000 },
-        ),
-      );
-      sunatData = resp.data;
-    } catch (error: any) {
-      sunatData = error.response?.data || { message: error.message };
-    }
+    const motorJavaUrl = process.env.JAVA_MOTOR_URL || 'http://localhost:8089';
+try {
+  const resp = await firstValueFrom(
+    this.httpService.post(
+      `${motorJavaUrl}/api/resumenes/estado?ticket=${resumen.ticket}`,
+      empresaPayload,
+      { timeout: 20000 },
+    ),
+  );
+  sunatData = resp.data;
+} catch (error: any) {
+  sunatData = error.response?.data || { message: error.message };
+}
 
     const codigo = sunatData?.sunatResponseCode;
     const aceptado = codigo === '0';

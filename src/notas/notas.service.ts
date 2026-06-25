@@ -129,9 +129,10 @@ export class NotasService {
     // Enviar a Java
     let sunatData: any = null;
     let sunatAcepto = false;
+    const motorJavaUrl = process.env.JAVA_MOTOR_URL || 'http://localhost:8089';
     try {
       const resp = await firstValueFrom(
-        this.httpService.post('http://localhost:8089/api/notas/emitir', payloadJava),
+        this.httpService.post('${motorJavaUrl}/api/notas/emitir', payloadJava),
       );
       sunatData = resp.data;
       sunatAcepto = sunatData?.success === true && sunatData?.sunatResponseCode === '0';

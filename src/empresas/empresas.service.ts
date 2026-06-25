@@ -37,6 +37,7 @@ export class EmpresasService {
     }
 
     // 2. Reenviar el certificado .pfx a Java
+    const motorJavaUrl = process.env.JAVA_MOTOR_URL || 'http://localhost:8089';
     try {
       const formData = new FormData();
       formData.append('archivo', certificado.buffer, {
@@ -46,7 +47,7 @@ export class EmpresasService {
       formData.append('password', passwordCertificado);
       formData.append('ambiente', 'beta');
 
-      const urlJava = `http://localhost:8089/api/certificados/${createEmpresaDto.ruc}/upload`;
+      const urlJava = `${motorJavaUrl}/api/certificados/${createEmpresaDto.ruc}/upload`;
 
       const respuestaJava = await firstValueFrom(
         this.httpService.post(urlJava, formData, {
@@ -165,11 +166,11 @@ async actualizarCertificado(
   const formData = new FormData();
   formData.append('archivo', archivo.buffer, archivo.originalname);
   formData.append('password', password_certificado);
-
+const motorJavaUrl = process.env.JAVA_MOTOR_URL || 'http://localhost:8089';
   try {
     await firstValueFrom(
       this.httpService.post(
-        `http://localhost:8089/api/certificados/${empresa.ruc}/upload?ambiente=${empresa.ambiente}`,
+        `${motorJavaUrl}/api/certificados/${empresa.ruc}/upload?ambiente=${empresa.ambiente}`,
         formData,
         { headers: formData.getHeaders() },
       ),

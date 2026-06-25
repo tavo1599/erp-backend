@@ -256,9 +256,10 @@ export class VentasService {
     let sunatAcepto = false;
 
     try {
-      const respuestaJava = await firstValueFrom(
-        this.httpService.post('http://localhost:8089/api/comprobantes/emitir', payloadJava),
-      );
+      const motorJavaUrl = process.env.JAVA_MOTOR_URL || 'http://localhost:8089';
+const respuestaJava = await firstValueFrom(
+  this.httpService.post(`${motorJavaUrl}/api/comprobantes/emitir`, payloadJava),
+);
       sunatData = respuestaJava.data;
       sunatAcepto = sunatData?.success === true && sunatData?.sunatResponseCode === '0';
       console.log('>>> Java respondió. Aceptó:', sunatAcepto);

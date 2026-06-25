@@ -245,11 +245,12 @@ export class GuiasRemisionService {
     // ============================================================
     let sunatData: any = null;
     let sunatAcepto = false;
+const motorJavaUrl = process.env.JAVA_MOTOR_URL || 'http://localhost:8089';
 
     try {
       const respuestaJava = await firstValueFrom(
         this.httpService.post(
-          'http://localhost:8089/api/guias/emitir',
+          '${motorJavaUrl}/api/guias/emitir',
           payloadJava,
           { timeout: 60000 }, // las guías pueden tardar más (polling de ticket)
         ),
