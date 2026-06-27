@@ -94,7 +94,7 @@ const payloadJava = {
     const motorJavaUrl = process.env.JAVA_MOTOR_URL || 'http://localhost:8089';
     try {
       const resp = await firstValueFrom(
-        this.httpService.post('${motorJavaUrl}/api/resumenes/enviar', payloadJava),
+        this.httpService.post(`${motorJavaUrl}/api/resumenes/enviar`, payloadJava),
       );
       sunatData = resp.data;
       ticket = sunatData?.ticket || null;

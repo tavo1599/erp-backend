@@ -250,7 +250,7 @@ const motorJavaUrl = process.env.JAVA_MOTOR_URL || 'http://localhost:8089';
     try {
       const respuestaJava = await firstValueFrom(
         this.httpService.post(
-          '${motorJavaUrl}/api/guias/emitir',
+          `${motorJavaUrl}/api/guias/emitir`,
           payloadJava,
           { timeout: 60000 }, // las guías pueden tardar más (polling de ticket)
         ),
