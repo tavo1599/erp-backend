@@ -72,7 +72,7 @@ export class BajasService {
     const motorJavaUrl = process.env.JAVA_MOTOR_URL || 'http://localhost:8089';
     try {
       const resp = await firstValueFrom(
-        this.httpService.post('${motorJavaUrl}/api/bajas/enviar', payloadJava),
+        this.httpService.post(`${motorJavaUrl}/api/bajas/enviar`, payloadJava),
       );
       sunatData = resp.data;
       ticket = sunatData?.ticket || null;
