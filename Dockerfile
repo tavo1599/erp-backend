@@ -29,6 +29,11 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 
+ENV TZ=America/Lima
+RUN apk add --no-cache tzdata && \
+    cp /usr/share/zoneinfo/America/Lima /etc/localtime && \
+    echo "America/Lima" > /etc/timezone
+
 # Copiar package.json para instalar solo deps de producción
 COPY package*.json ./
 
