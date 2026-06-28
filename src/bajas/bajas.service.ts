@@ -25,7 +25,7 @@ export class BajasService {
     if (!empresa) throw new BadRequestException('Empresa no encontrada');
 
     // Correlativo de la baja del día: contamos cuántas bajas hubo hoy + 1
-    const hoy = new Date().toISOString().split('T')[0];
+    const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' });
     const bajasHoy = await this.bajaRepository
       .createQueryBuilder('baja')
       .where('baja.empresa_id = :empresaId', { empresaId })
