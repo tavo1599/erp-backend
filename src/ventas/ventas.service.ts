@@ -129,13 +129,19 @@ export class VentasService {
       });
     }
 
-    // ============================================================
-    // PASO 1: Leer correlativo actual
-    // ============================================================
-    const serieExistente = await this.dataSource.manager.findOne(SerieComprobante, {
-      where: { empresa_id: empresaId, tipo_comprobante, serie },
-    });
-    const correlativoTentativo = (serieExistente?.ultimo_correlativo || 0) + 1;
+// ============================================================
+// PASO 1: Leer correlativo actual (separado por ambiente)
+// ============================================================
+const ambienteActual = empresa.ambiente || 'beta';
+const serieExistente = await this.dataSource.manager.findOne(SerieComprobante, {
+  where: { 
+    empresa_id: empresaId, 
+    tipo_comprobante, 
+    serie,
+    ambiente: ambienteActual,
+  },
+});
+const correlativoTentativo = (serieExistente?.ultimo_correlativo || 0) + 1;
 
     // ============================================================
     // PASO 2: Calcular totales separados por tipo de IGV
@@ -176,7 +182,7 @@ export class VentasService {
     const importeTotal = totalGravadoSinIgv + totalIgv + totalExonerado + totalInafecto;
 
     const ahora = new Date();
-    const fechaActual = ahora.toISOString().split('T')[0];
+    const fechaActual = ahora.toLocaleDateString('en-CA', { timeZone: 'America/Lima' });
     const horaActual = ahora.toTimeString().split(' ')[0];
     const tipoDocCliente = cliente_numero_documento.length === 11 ? '6' : '1';
 
@@ -272,174 +278,210 @@ const respuestaJava = await firstValueFrom(
     // ============================================================
     // PASO 4: Guardar TODO en UNA SOLA transacción
     // ============================================================
-    const nombreArchivo = `${empresa.ruc}-${tipo_comprobante}-${serie}-${String(correlativoTentativo).padStart(8, '0')}`;
-
-    console.log('>>> Guardando en BD...');
-    const ventaGuardada = await this.dataSource.transaction(async (manager) => {
-      if (sunatAcepto) {
-        const serieActual = await manager.findOne(SerieComprobante, {
-          where: { empresa_id: empresaId, tipo_comprobante, serie },
-        });
-
-        if (serieActual) {
-          serieActual.ultimo_correlativo = correlativoTentativo;
-          await manager.save(serieActual);
-        } else {
-          await manager.save(
-            manager.create(SerieComprobante, {
-              empresa_id: empresaId,
-              tipo_comprobante,
-              serie,
-              ultimo_correlativo: correlativoTentativo,
-            }),
-          );
-        }
-
-        for (const item of itemsResueltos) {
-          await this.kardexService.registrarMovimiento(
-            {
-              producto_id: item.producto.id,
-              empresa_id: empresaId,
-              tipo_movimiento: 'SALIDA_VENTA',
-              cantidad: item.cantidad,
-              referencia_documento: `${serie}-${correlativoTentativo}`,
-            },
-            manager,
-          );
-        }
-      }
-
-      const itemsDetalle = itemsResueltos.map((item) =>
-        manager.create(VentaDetalle, {
-          producto_id: item.producto.id,
-          cantidad: item.cantidad,
-          precio_unitario: item.precioUnitario,
-          subtotal: item.cantidad * item.precioUnitario,
-        }),
-      );
-
-      let fechaVencimiento: Date | null = null;
-      if (condicionPago === 'CREDITO' && diasCredito > 0) {
-        fechaVencimiento = new Date();
-        fechaVencimiento.setDate(fechaVencimiento.getDate() + diasCredito);
-      }
-
-      const nuevaVenta = manager.create(Venta, {
-        empresa_id: empresaId,
-        cliente_numero_documento,
-        cliente_razon_social,
-        tipo_comprobante,
-        serie,
-        correlativo: correlativoTentativo,
-        total_gravado: Number(totalGravadoSinIgv.toFixed(2)),
-        total_exonerado: Number(totalExonerado.toFixed(2)),
-        total_inafecto: Number(totalInafecto.toFixed(2)),
-        total_igv: Number(totalIgv.toFixed(2)),
-        importe_total: Number(importeTotal.toFixed(2)),
-        estado_sunat: sunatAcepto ? 'ACEPTADO' : 'RECHAZADO',
-        sunat_codigo: sunatData?.sunatResponseCode || null,
-        sunat_descripcion: sunatData?.sunatDescription || sunatData?.message || null,
-        sunat_hash: sunatData?.hashCode || null,
-        sunat_xml_base64: sunatData?.xmlBase64 || null,
-        sunat_cdr_base64: sunatData?.cdrBase64 || null,
-        nombre_archivo: nombreArchivo,
-        condicion_pago: condicionPago,
-        estado_pago: condicionPago === 'CONTADO' ? 'PAGADO' : 'PENDIENTE',
-        fecha_vencimiento: fechaVencimiento,
-        detalles: itemsDetalle,
-      });
-
-      const ventaGuardadaTx = await manager.save(nuevaVenta);
-
-      // Guardar pagos múltiples si vinieron
-      if (createVentaDto.pagos && createVentaDto.pagos.length > 0 && sunatAcepto) {
-        const sumaPagos = createVentaDto.pagos.reduce((s, p) => s + Number(p.monto), 0);
-
-        if (sumaPagos < importeTotal - 0.01) {
-          throw new BadRequestException(
-            `La suma de pagos (${sumaPagos.toFixed(2)}) no cubre el total (${importeTotal.toFixed(2)})`,
-          );
-        }
-
-        if (sumaPagos > importeTotal + 0.01) {
-          const tieneEfectivo = createVentaDto.pagos.some((p) => p.metodo === 'EFECTIVO');
-          if (!tieneEfectivo) {
-            throw new BadRequestException(
-              'Solo se permite vuelto cuando uno de los pagos es en efectivo',
-            );
-          }
-        }
-
-        for (const pago of createVentaDto.pagos) {
-          await manager.save(
-            manager.create(VentaPago, {
-              venta_id: ventaGuardadaTx.id,
-              metodo: pago.metodo,
-              monto: Number(pago.monto),
-              referencia: pago.referencia ?? undefined,
-            } as any),
-          );
-        }
-      }
-
-      if (sunatAcepto) {
-        const comprobante = `${serie}-${String(correlativoTentativo).padStart(8, '0')}`;
-        const montoTotal = Number(importeTotal.toFixed(2));
-
-        if (condicionPago === 'CONTADO') {
-          await this.finanzasService.registrarCaja(
-            {
-              empresa_id: empresaId,
-              tipo: 'INGRESO',
-              concepto: `Venta al contado ${comprobante}`,
-              monto: montoTotal,
-              referencia: comprobante,
-              metodo_pago: 'EFECTIVO',
-            },
-            manager,
-          );
-        } else {
-          await this.finanzasService.crearCuentaPorCobrar(
-            {
-              empresa_id: empresaId,
-              venta_id: ventaGuardadaTx.id,
-              cliente_documento: cliente_numero_documento,
-              cliente_razon_social,
-              comprobante,
-              monto_total: montoTotal,
-              fecha_vencimiento: fechaVencimiento,
-            },
-            manager,
-          );
-        }
-      }
-
-      return ventaGuardadaTx;
+    if (!sunatAcepto) {
+  // Auditoría del rechazo (opcional, sin guardar la venta)
+  if (contexto) {
+    await this.auditoriaService.registrar({
+      empresa_id: empresaId,
+      usuario_id: contexto.usuario_id,
+      usuario_email: contexto.usuario_email,
+      usuario_rol: contexto.usuario_rol,
+      accion: 'EMITIR_VENTA_RECHAZADA',
+      recurso: 'venta',
+      datos_despues: {
+        comprobante_intento: `${serie}-${correlativoTentativo}`,
+        cliente: cliente_razon_social,
+        error_sunat: sunatData?.sunatDescription || sunatData?.message,
+      },
+      ip: contexto.ip,
+      user_agent: contexto.user_agent,
     });
-    console.log('>>> Venta guardada OK');
+  }
+  
+  throw new BadRequestException({
+    mensaje: 'SUNAT rechazó el comprobante. No se guardó nada, el correlativo no avanzó.',
+    sunat_codigo: sunatData?.sunatResponseCode,
+    sunat_descripcion: sunatData?.sunatDescription || sunatData?.message,
+    correlativo_intentado: correlativoTentativo,
+  });
+}
 
-    // ============================================================
-    // AUDITORÍA (FUERA de la transacción)
-    // ============================================================
-    if (contexto) {
-      await this.auditoriaService.registrar({
+const nombreArchivo = `${empresa.ruc}-${tipo_comprobante}-${serie}-${String(correlativoTentativo).padStart(8, '0')}`;
+
+console.log('>>> Guardando en BD...');
+const ventaGuardada = await this.dataSource.transaction(async (manager) => {
+  // Actualizar correlativo de la serie
+const serieActual = await manager.findOne(SerieComprobante, {
+  where: { 
+    empresa_id: empresaId, 
+    tipo_comprobante, 
+    serie,
+    ambiente: ambienteActual,
+  },
+});
+
+if (serieActual) {
+  serieActual.ultimo_correlativo = correlativoTentativo;
+  await manager.save(serieActual);
+} else {
+  await manager.save(
+    manager.create(SerieComprobante, {
+      empresa_id: empresaId,
+      tipo_comprobante,
+      serie,
+      ambiente: ambienteActual,
+      ultimo_correlativo: correlativoTentativo,
+    }),
+  );
+}
+
+  // Descontar stock
+  for (const item of itemsResueltos) {
+    await this.kardexService.registrarMovimiento(
+      {
+        producto_id: item.producto.id,
         empresa_id: empresaId,
-        usuario_id: contexto.usuario_id,
-        usuario_email: contexto.usuario_email,
-        usuario_rol: contexto.usuario_rol,
-        accion: 'EMITIR_VENTA',
-        recurso: 'venta',
-        recurso_id: ventaGuardada.id,
-        datos_despues: {
-          comprobante: `${serie}-${correlativoTentativo}`,
-          importe_total: importeTotal,
-          cliente: cliente_razon_social,
-          estado: sunatAcepto ? 'ACEPTADO' : 'RECHAZADO',
-        },
-        ip: contexto.ip,
-        user_agent: contexto.user_agent,
-      });
+        tipo_movimiento: 'SALIDA_VENTA',
+        cantidad: item.cantidad,
+        referencia_documento: `${serie}-${correlativoTentativo}`,
+      },
+      manager,
+    );
+  }
+
+  // Crear detalles
+  const itemsDetalle = itemsResueltos.map((item) =>
+    manager.create(VentaDetalle, {
+      producto_id: item.producto.id,
+      cantidad: item.cantidad,
+      precio_unitario: item.precioUnitario,
+      subtotal: item.cantidad * item.precioUnitario,
+    }),
+  );
+
+  // Fecha vencimiento si es crédito
+  let fechaVencimiento: Date | null = null;
+  if (condicionPago === 'CREDITO' && diasCredito > 0) {
+    fechaVencimiento = new Date();
+    fechaVencimiento.setDate(fechaVencimiento.getDate() + diasCredito);
+  }
+
+  // Crear venta con estado ACEPTADO (siempre)
+  const nuevaVenta = manager.create(Venta, {
+    empresa_id: empresaId,
+    cliente_numero_documento,
+    cliente_razon_social,
+    tipo_comprobante,
+    serie,
+    correlativo: correlativoTentativo,
+    total_gravado: Number(totalGravadoSinIgv.toFixed(2)),
+    total_exonerado: Number(totalExonerado.toFixed(2)),
+    total_inafecto: Number(totalInafecto.toFixed(2)),
+    total_igv: Number(totalIgv.toFixed(2)),
+    importe_total: Number(importeTotal.toFixed(2)),
+    estado_sunat: 'ACEPTADO',
+    sunat_codigo: sunatData?.sunatResponseCode || null,
+    sunat_descripcion: sunatData?.sunatDescription || null,
+    sunat_hash: sunatData?.hashCode || null,
+    sunat_xml_base64: sunatData?.xmlBase64 || null,
+    sunat_cdr_base64: sunatData?.cdrBase64 || null,
+    nombre_archivo: nombreArchivo,
+    condicion_pago: condicionPago,
+    estado_pago: condicionPago === 'CONTADO' ? 'PAGADO' : 'PENDIENTE',
+    fecha_vencimiento: fechaVencimiento,
+    detalles: itemsDetalle,
+  });
+
+  const ventaGuardadaTx = await manager.save(nuevaVenta);
+
+  // Pagos múltiples
+  if (createVentaDto.pagos && createVentaDto.pagos.length > 0) {
+    const sumaPagos = createVentaDto.pagos.reduce((s, p) => s + Number(p.monto), 0);
+
+    if (sumaPagos < importeTotal - 0.01) {
+      throw new BadRequestException(
+        `La suma de pagos (${sumaPagos.toFixed(2)}) no cubre el total (${importeTotal.toFixed(2)})`,
+      );
     }
+
+    if (sumaPagos > importeTotal + 0.01) {
+      const tieneEfectivo = createVentaDto.pagos.some((p) => p.metodo === 'EFECTIVO');
+      if (!tieneEfectivo) {
+        throw new BadRequestException(
+          'Solo se permite vuelto cuando uno de los pagos es en efectivo',
+        );
+      }
+    }
+
+    for (const pago of createVentaDto.pagos) {
+      await manager.save(
+        manager.create(VentaPago, {
+          venta_id: ventaGuardadaTx.id,
+          metodo: pago.metodo,
+          monto: Number(pago.monto),
+          referencia: pago.referencia ?? undefined,
+        } as any),
+      );
+    }
+  }
+
+  // Finanzas
+  const comprobante = `${serie}-${String(correlativoTentativo).padStart(8, '0')}`;
+  const montoTotal = Number(importeTotal.toFixed(2));
+
+  if (condicionPago === 'CONTADO') {
+    await this.finanzasService.registrarCaja(
+      {
+        empresa_id: empresaId,
+        tipo: 'INGRESO',
+        concepto: `Venta al contado ${comprobante}`,
+        monto: montoTotal,
+        referencia: comprobante,
+        metodo_pago: 'EFECTIVO',
+      },
+      manager,
+    );
+  } else {
+    await this.finanzasService.crearCuentaPorCobrar(
+      {
+        empresa_id: empresaId,
+        venta_id: ventaGuardadaTx.id,
+        cliente_documento: cliente_numero_documento,
+        cliente_razon_social,
+        comprobante,
+        monto_total: montoTotal,
+        fecha_vencimiento: fechaVencimiento,
+      },
+      manager,
+    );
+  }
+
+  return ventaGuardadaTx;
+});
+console.log('>>> Venta guardada OK');
+
+// ============================================================
+// AUDITORÍA (FUERA de la transacción)
+// ============================================================
+if (contexto) {
+  await this.auditoriaService.registrar({
+    empresa_id: empresaId,
+    usuario_id: contexto.usuario_id,
+    usuario_email: contexto.usuario_email,
+    usuario_rol: contexto.usuario_rol,
+    accion: 'EMITIR_VENTA',
+    recurso: 'venta',
+    recurso_id: ventaGuardada.id,
+    datos_despues: {
+      comprobante: `${serie}-${correlativoTentativo}`,
+      importe_total: importeTotal,
+      cliente: cliente_razon_social,
+      estado: 'ACEPTADO',
+    },
+    ip: contexto.ip,
+    user_agent: contexto.user_agent,
+  });
+}
 
     // ============================================================
     // PASO 5: Respuesta al frontend
@@ -454,12 +496,12 @@ const respuestaJava = await firstValueFrom(
       };
     } else {
       return {
-        mensaje: 'Venta guardada como RECHAZADA. El correlativo NO avanzó, puede reintentar.',
-        venta_id: ventaGuardada.id,
-        comprobante: `${serie}-${correlativoTentativo}`,
-        estado: 'RECHAZADO',
-        error_sunat: sunatData?.sunatDescription || sunatData?.message,
-      };
+  mensaje: 'Venta registrada y aceptada por SUNAT',
+  venta_id: ventaGuardada.id,
+  comprobante: `${serie}-${correlativoTentativo}`,
+  estado: 'ACEPTADO',
+  sunat_descripcion: sunatData.sunatDescription,
+};
     }
   }
 

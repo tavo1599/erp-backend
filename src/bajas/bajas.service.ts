@@ -20,103 +20,131 @@ export class BajasService {
   ) {}
 
   // PASO 1: Enviar la comunicación de baja (recibe ticket)
-  async enviarBaja(dto: CreateBajaDto, empresaId: string) {
-    const empresa = await this.empresaRepository.findOne({ where: { id: empresaId } });
-    if (!empresa) throw new BadRequestException('Empresa no encontrada');
+async enviarBaja(dto: CreateBajaDto, empresaId: string) {
+  const empresa = await this.empresaRepository.findOne({ where: { id: empresaId } });
+  if (!empresa) throw new BadRequestException('Empresa no encontrada');
 
-    // Correlativo de la baja del día: contamos cuántas bajas hubo hoy + 1
-    const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' });
-    const bajasHoy = await this.bajaRepository
-      .createQueryBuilder('baja')
-      .where('baja.empresa_id = :empresaId', { empresaId })
-      .andWhere('DATE(baja.fecha_creacion) = :hoy', { hoy })
-      .getCount();
-    const correlativoBaja = bajasHoy + 1;
-
-    const fechaActual = hoy;
-
-    const payloadJava = {
-      empresa: {
-        ruc: empresa.ruc,
-        razonSocial: empresa.razon_social,
-        nombreComercial: empresa.nombre_comercial || empresa.razon_social,
-        direccion: empresa.direccion,
-        ubigeo: empresa.ubigeo || '150101',
-        departamento: empresa.departamento || 'LIMA',
-        provincia: empresa.provincia || 'LIMA',
-        distrito: empresa.distrito || 'LIMA',
-        codigoPais: 'PE',
-        solUsuario: empresa.sol_usuario || 'MODDATOS',
-        solClave: empresa.sol_clave || 'MODDATOS',
-        ambiente: empresa.ambiente || 'beta',
-      },
-      fechaGeneracion: fechaActual,
-      fechaBajaDocs: dto.fecha_emision_documento,
-      correlativo: correlativoBaja,
-      items: [
-        {
-          numero: 1,
-          tipoDocumento: dto.tipo_documento,
-          serie: dto.serie_documento,
-          correlativo: dto.correlativo_documento,
-          motivo: dto.motivo,
-        },
-      ],
-    };
-
-    console.log('=== PAYLOAD BAJA A JAVA ===');
-    console.log(JSON.stringify(payloadJava, null, 2));
-
-    let sunatData: any = null;
-    let ticket: string | null = null;
-    const motorJavaUrl = process.env.JAVA_MOTOR_URL || 'http://localhost:8089';
-    try {
-      const resp = await firstValueFrom(
-        this.httpService.post(`${motorJavaUrl}/api/bajas/enviar`, payloadJava),
-      );
-      sunatData = resp.data;
-      ticket = sunatData?.ticket || null;
-    } catch (error: any) {
-      sunatData = error.response?.data || { message: error.message };
-    }
-
-    const identificador = `RA-${fechaActual.replace(/-/g, '')}-${correlativoBaja}`;
-    const nombreArchivo = `${empresa.ruc}-${identificador}`;
-
-    // Guardar la baja con el ticket
-    const baja = this.bajaRepository.create({
+  // VALIDACIÓN: si ya hay una baja ACEPTADA o PENDIENTE para este documento, bloquear
+  const bajaExistente = await this.bajaRepository.findOne({
+    where: {
       empresa_id: empresaId,
-      identificador,
-      correlativo: correlativoBaja,
       tipo_documento: dto.tipo_documento,
       serie_documento: dto.serie_documento,
       correlativo_documento: dto.correlativo_documento,
-      motivo: dto.motivo,
-      ticket,
-      estado: ticket ? 'PENDIENTE' : 'RECHAZADO',
-      sunat_descripcion: sunatData?.message || sunatData?.sunatDescription || null,
-      nombre_archivo: nombreArchivo,
-    });
-    const bajaGuardada = await this.bajaRepository.save(baja);
+    },
+    order: { fecha_creacion: 'DESC' },
+  });
 
-    if (ticket) {
-      return {
-        mensaje: 'Comunicación de baja enviada. Use el ticket para consultar el estado.',
-        baja_id: bajaGuardada.id,
-        identificador,
-        ticket,
-        estado: 'PENDIENTE',
-        nota: 'Espere unos segundos y consulte el estado con GET /bajas/:id/estado',
-      };
-    } else {
-      return {
-        mensaje: 'No se pudo enviar la baja',
-        baja_id: bajaGuardada.id,
-        estado: 'RECHAZADO',
-        error: sunatData?.message,
-      };
-    }
+  if (bajaExistente && bajaExistente.estado === 'ACEPTADO') {
+    throw new BadRequestException(
+      `El comprobante ${dto.serie_documento}-${dto.correlativo_documento} ya fue dado de baja exitosamente.`,
+    );
   }
+
+  if (bajaExistente && bajaExistente.estado === 'PENDIENTE') {
+    throw new BadRequestException(
+      `Ya hay una baja PENDIENTE para este comprobante. Consulta el estado del ticket ${bajaExistente.ticket} antes de reintentar.`,
+    );
+  }
+
+  // Si hay una baja RECHAZADA anterior, la borramos para no duplicar
+  if (bajaExistente && bajaExistente.estado === 'RECHAZADO') {
+    await this.bajaRepository.delete({ id: bajaExistente.id });
+  }
+
+  // Correlativo de la baja del día
+  const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' });
+  const bajasHoy = await this.bajaRepository
+    .createQueryBuilder('baja')
+    .where('baja.empresa_id = :empresaId', { empresaId })
+    .andWhere('DATE(baja.fecha_creacion) = :hoy', { hoy })
+    .getCount();
+  const correlativoBaja = bajasHoy + 1;
+
+  const fechaActual = hoy;
+
+  const payloadJava = {
+    empresa: {
+      ruc: empresa.ruc,
+      razonSocial: empresa.razon_social,
+      nombreComercial: empresa.nombre_comercial || empresa.razon_social,
+      direccion: empresa.direccion,
+      ubigeo: empresa.ubigeo || '150101',
+      departamento: empresa.departamento || 'LIMA',
+      provincia: empresa.provincia || 'LIMA',
+      distrito: empresa.distrito || 'LIMA',
+      codigoPais: 'PE',
+      solUsuario: empresa.sol_usuario || 'MODDATOS',
+      solClave: empresa.sol_clave || 'MODDATOS',
+      ambiente: empresa.ambiente || 'beta',
+    },
+    fechaGeneracion: fechaActual,
+    fechaBajaDocs: dto.fecha_emision_documento,
+    correlativo: correlativoBaja,
+    items: [
+      {
+        numero: 1,
+        tipoDocumento: dto.tipo_documento,
+        serie: dto.serie_documento,
+        correlativo: dto.correlativo_documento,
+        motivo: dto.motivo,
+      },
+    ],
+  };
+
+  console.log('=== PAYLOAD BAJA A JAVA ===');
+  console.log(JSON.stringify(payloadJava, null, 2));
+
+  let sunatData: any = null;
+  let ticket: string | null = null;
+  const motorJavaUrl = process.env.JAVA_MOTOR_URL || 'http://localhost:8089';
+  try {
+    const resp = await firstValueFrom(
+      this.httpService.post(`${motorJavaUrl}/api/bajas/enviar`, payloadJava),
+    );
+    sunatData = resp.data;
+    ticket = sunatData?.ticket || null;
+  } catch (error: any) {
+    sunatData = error.response?.data || { message: error.message };
+  }
+
+  // Si SUNAT no devolvió ticket, es rechazo inmediato → NO guardar
+  if (!ticket) {
+    throw new BadRequestException({
+      mensaje: 'SUNAT rechazó la comunicación de baja. No se guardó nada.',
+      sunat_descripcion: sunatData?.message || sunatData?.sunatDescription,
+      detalle: 'El correlativo del día no avanzó.',
+    });
+  }
+
+  const identificador = `RA-${fechaActual.replace(/-/g, '')}-${correlativoBaja}`;
+  const nombreArchivo = `${empresa.ruc}-${identificador}`;
+
+  // SUNAT dio TICKET → guardar baja como PENDIENTE
+  const baja = this.bajaRepository.create({
+    empresa_id: empresaId,
+    identificador,
+    correlativo: correlativoBaja,
+    tipo_documento: dto.tipo_documento,
+    serie_documento: dto.serie_documento,
+    correlativo_documento: dto.correlativo_documento,
+    motivo: dto.motivo,
+    ticket,
+    estado: 'PENDIENTE',
+    sunat_descripcion: sunatData?.message || sunatData?.sunatDescription || null,
+    nombre_archivo: nombreArchivo,
+  });
+  const bajaGuardada = await this.bajaRepository.save(baja);
+
+  return {
+    mensaje: 'Comunicación de baja enviada. Use el ticket para consultar el estado.',
+    baja_id: bajaGuardada.id,
+    identificador,
+    ticket,
+    estado: 'PENDIENTE',
+    nota: 'Espere unos segundos y consulte el estado.',
+  };
+}
 
   // PASO 2: Consultar el estado de la baja (con el ticket)
   async consultarEstado(bajaId: string, empresaId: string) {

@@ -55,12 +55,17 @@ export class NotasService {
       });
     }
 
-    // Correlativo de la nota (su propia serie)
-    const tipoSerieNota = tipo_nota; // las notas llevan su correlativo por serie
-    const serieExistente = await this.dataSource.manager.findOne(SerieComprobante, {
-      where: { empresa_id: empresaId, tipo_comprobante: tipo_nota, serie },
-    });
-    const correlativoTentativo = (serieExistente?.ultimo_correlativo || 0) + 1;
+// Correlativo de la nota (su propia serie, por ambiente)
+const ambienteActual = empresa.ambiente || 'beta';
+const serieExistente = await this.dataSource.manager.findOne(SerieComprobante, {
+  where: { 
+    empresa_id: empresaId, 
+    tipo_comprobante: tipo_nota, 
+    serie,
+    ambiente: ambienteActual,
+  },
+});
+const correlativoTentativo = (serieExistente?.ultimo_correlativo || 0) + 1;
 
     // Totales
     let totalConIgv = 0;
@@ -70,7 +75,7 @@ export class NotasService {
     const importeTotal = totalGravadoSinIgv + totalIgv;
 
     const ahora = new Date();
-    const fechaActual = ahora.toISOString().split('T')[0];
+    const fechaActual = ahora.toLocaleDateString('en-CA', { timeZone: 'America/Lima' });
     const horaActual = ahora.toTimeString().split(' ')[0];
     const tipoDocCliente = cliente_numero_documento.length === 11 ? '6' : '1';
 
@@ -141,71 +146,77 @@ export class NotasService {
       sunatAcepto = false;
     }
 
-    const nombreArchivo = `${empresa.ruc}-${tipo_nota}-${serie}-${String(correlativoTentativo).padStart(8, '0')}`;
+// Si SUNAT RECHAZÓ, NO guardar nada y lanzar excepción
+if (!sunatAcepto) {
+  throw new BadRequestException({
+    mensaje: 'SUNAT rechazó la nota. No se guardó nada, el correlativo no avanzó.',
+    sunat_codigo: sunatData?.sunatResponseCode,
+    sunat_descripcion: sunatData?.sunatDescription || sunatData?.message,
+    correlativo_intentado: correlativoTentativo,
+  });
+}
 
-    // Guardar
-    const notaGuardada = await this.dataSource.transaction(async (manager) => {
-      if (sunatAcepto) {
-        const serieActual = await manager.findOne(SerieComprobante, {
-          where: { empresa_id: empresaId, tipo_comprobante: tipo_nota, serie },
-        });
-        if (serieActual) {
-          serieActual.ultimo_correlativo = correlativoTentativo;
-          await manager.save(serieActual);
-        } else {
-          await manager.save(
-            manager.create(SerieComprobante, {
-              empresa_id: empresaId,
-              tipo_comprobante: tipo_nota,
-              serie,
-              ultimo_correlativo: correlativoTentativo,
-            }),
-          );
-        }
-      }
+const nombreArchivo = `${empresa.ruc}-${tipo_nota}-${serie}-${String(correlativoTentativo).padStart(8, '0')}`;
 
-      const nuevaNota = manager.create(Nota, {
-        empresa_id: empresaId,
-        tipo_nota,
-        serie,
-        correlativo: correlativoTentativo,
-        tipo_comprobante_afectado,
-        comprobante_afectado,
-        codigo_motivo,
-        descripcion_motivo,
-        cliente_numero_documento,
-        cliente_razon_social,
-        total_gravado: Number(totalGravadoSinIgv.toFixed(2)),
-        total_igv: Number(totalIgv.toFixed(2)),
-        importe_total: Number(importeTotal.toFixed(2)),
-        estado_sunat: sunatAcepto ? 'ACEPTADO' : 'RECHAZADO',
-        sunat_codigo: sunatData?.sunatResponseCode || null,
-        sunat_descripcion: sunatData?.sunatDescription || sunatData?.message || null,
-        sunat_hash: sunatData?.hashCode || null,
-        sunat_xml_base64: sunatData?.xmlBase64 || null,
-        sunat_cdr_base64: sunatData?.cdrBase64 || null,
-        nombre_archivo: nombreArchivo,
-      });
-      return await manager.save(nuevaNota);
-    });
+// SUNAT aceptó → guardar todo en transacción
+const notaGuardada = await this.dataSource.transaction(async (manager) => {
+  // Actualizar correlativo de la serie
+const serieActual = await manager.findOne(SerieComprobante, {
+  where: { 
+    empresa_id: empresaId, 
+    tipo_comprobante: tipo_nota, 
+    serie,
+    ambiente: ambienteActual,
+  },
+});
+if (serieActual) {
+  serieActual.ultimo_correlativo = correlativoTentativo;
+  await manager.save(serieActual);
+} else {
+  await manager.save(
+    manager.create(SerieComprobante, {
+      empresa_id: empresaId,
+      tipo_comprobante: tipo_nota,
+      serie,
+      ambiente: ambienteActual,
+      ultimo_correlativo: correlativoTentativo,
+    }),
+  );
+}
 
-    if (sunatAcepto) {
-      return {
-        mensaje: 'Nota emitida y aceptada por SUNAT',
-        nota_id: notaGuardada.id,
-        comprobante: `${serie}-${correlativoTentativo}`,
-        estado: 'ACEPTADO',
-        sunat_descripcion: sunatData.sunatDescription,
-      };
-    } else {
-      return {
-        mensaje: 'Nota guardada como RECHAZADA. El correlativo NO avanzó.',
-        nota_id: notaGuardada.id,
-        comprobante: `${serie}-${correlativoTentativo}`,
-        estado: 'RECHAZADO',
-        error_sunat: sunatData?.sunatDescription || sunatData?.message,
-      };
-    }
+  // Guardar nota
+  const nuevaNota = manager.create(Nota, {
+    empresa_id: empresaId,
+    tipo_nota,
+    serie,
+    correlativo: correlativoTentativo,
+    tipo_comprobante_afectado,
+    comprobante_afectado,
+    codigo_motivo,
+    descripcion_motivo,
+    cliente_numero_documento,
+    cliente_razon_social,
+    total_gravado: Number(totalGravadoSinIgv.toFixed(2)),
+    total_igv: Number(totalIgv.toFixed(2)),
+    importe_total: Number(importeTotal.toFixed(2)),
+    estado_sunat: 'ACEPTADO',
+    sunat_codigo: sunatData?.sunatResponseCode || null,
+    sunat_descripcion: sunatData?.sunatDescription || null,
+    sunat_hash: sunatData?.hashCode || null,
+    sunat_xml_base64: sunatData?.xmlBase64 || null,
+    sunat_cdr_base64: sunatData?.cdrBase64 || null,
+    nombre_archivo: nombreArchivo,
+  });
+  return await manager.save(nuevaNota);
+});
+
+return {
+  mensaje: 'Nota emitida y aceptada por SUNAT',
+  nota_id: notaGuardada.id,
+  comprobante: `${serie}-${correlativoTentativo}`,
+  estado: 'ACEPTADO',
+  sunat_descripcion: sunatData.sunatDescription,
+};
   }
 
   // Listar notas de la empresa
