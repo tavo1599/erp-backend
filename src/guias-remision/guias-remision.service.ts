@@ -13,6 +13,7 @@ import { Conductor } from '../conductores/entities/conductor.entity';
 import { SerieComprobante } from '../ventas/entities/serie-comprobante.entity';
 import { CreateGuiaRemisionDto } from './dto/create-guia-remision.dto';
 import { AuditoriaService } from '../auditoria/auditoria.service';
+import { fechaActualLima } from '../common/utils/fecha.util';
 
 interface ContextoUsuario {
   usuario_id: string;
@@ -196,7 +197,7 @@ export class GuiasRemisionService {
       tipoGuia: dto.tipo_guia,
       serie: dto.serie.toUpperCase(),
       correlativo,
-      fechaEmision: new Date().toISOString().split('T')[0],
+      fechaEmision: fechaActualLima(),
       fechaInicioTraslado: dto.fecha_inicio_traslado,
       motivoTraslado: dto.motivo_traslado,
       descripcionMotivo: dto.descripcion_motivo,

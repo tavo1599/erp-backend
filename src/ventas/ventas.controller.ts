@@ -78,6 +78,20 @@ export class VentasController {
   }
 
   @Permiso('ver_ventas')
+@Get('proximo-correlativo')
+proximoCorrelativo(
+  @Query('tipo_comprobante') tipo: string,
+  @Query('serie') serie: string,
+  @Request() req: any,
+) {
+  return this.ventasService.obtenerProximoCorrelativo(
+    tipo,
+    serie,
+    req.user.empresa_id,
+  );
+}
+
+  @Permiso('ver_ventas')
   @Get(':id')
   obtener(@Param('id') id: string, @Request() req: any) {
     return this.ventasService.obtenerVenta(id, req.user.empresa_id);
@@ -154,4 +168,15 @@ export class VentasController {
     });
     res.send(cdrBuffer);
   }
+
+  @Permiso('anular_ventas')
+@Post(':id/marcar-anulacion')
+marcarParaAnulacion(@Param('id') id: string, @Request() req: any) {
+  return this.ventasService.marcarBoletaPendienteAnulacion(id, req.user.empresa_id, {
+    usuario_id: req.user.sub,
+    usuario_email: req.user.email,
+    usuario_rol: req.user.rol,
+    ip: req.ip,
+  });
+}
 }

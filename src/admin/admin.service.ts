@@ -8,6 +8,7 @@ import { EmpresaUsuario } from '../usuarios/entities/empresa-usuario.entity';
 import { Venta } from '../ventas/entities/venta.entity';
 import { CreateEmpresaDto } from '../empresas/dto/create-empresa.dto';
 import { Rol } from '../auth/roles.enum';
+import { fechaActualLima } from '../common/utils/fecha.util';
 
 @Injectable()
 export class AdminService {
@@ -161,7 +162,7 @@ export class AdminService {
       .getCount();
 
     // Comprobantes emitidos hoy
-    const hoy = new Date().toISOString().split('T')[0];
+    const hoy = fechaActualLima()
     const comprobantesHoy = await this.dataSource
       .getRepository(Venta)
       .createQueryBuilder('v')

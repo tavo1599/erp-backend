@@ -15,6 +15,7 @@ import { FinanzasService } from '../finanzas/finanzas.service';
 import { BajasService } from '../bajas/bajas.service';
 import { VentaPago } from './entities/venta-pago.entity';
 import { AuditoriaService } from '../auditoria/auditoria.service';
+import { fechaActualLima, horaActualLima } from '../common/utils/fecha.util';
 
 interface ItemResuelto {
   producto: Producto;
@@ -181,9 +182,9 @@ const correlativoTentativo = (serieExistente?.ultimo_correlativo || 0) + 1;
     const totalIgv = totalGravadoSinIgv * 0.18;
     const importeTotal = totalGravadoSinIgv + totalIgv + totalExonerado + totalInafecto;
 
-    const ahora = new Date();
-    const fechaActual = ahora.toLocaleDateString('en-CA', { timeZone: 'America/Lima' });
-    const horaActual = ahora.toTimeString().split(' ')[0];
+const fechaActual = fechaActualLima();
+const horaActual = horaActualLima();
+
     const tipoDocCliente = cliente_numero_documento.length === 11 ? '6' : '1';
 
     const payloadJava = {
@@ -815,4 +816,98 @@ if (contexto) {
 
     return this.bajasService.enviarBaja(dto as any, empresaId);
   }
+
+  /**
+ * Devuelve el próximo correlativo a usar para un tipo de comprobante + serie.
+ * Considera el ambiente actual de la empresa (beta o producción).
+ */
+async obtenerProximoCorrelativo(
+  tipoComprobante: string,
+  serie: string,
+  empresaId: string,
+) {
+  if (!tipoComprobante || !serie) {
+    throw new BadRequestException('Debes indicar tipo_comprobante y serie');
+  }
+
+  const empresa = await this.empresaRepository.findOne({ where: { id: empresaId } });
+  if (!empresa) throw new BadRequestException('Empresa no encontrada');
+
+  const ambiente = empresa.ambiente || 'beta';
+
+  const serieExistente = await this.dataSource.manager.findOne(SerieComprobante, {
+    where: {
+      empresa_id: empresaId,
+      tipo_comprobante: tipoComprobante,
+      serie,
+      ambiente,
+    },
+  });
+
+  const ultimoCorrelativo = serieExistente?.ultimo_correlativo || 0;
+  const proximoCorrelativo = ultimoCorrelativo + 1;
+
+  return {
+    tipo_comprobante: tipoComprobante,
+    serie,
+    ambiente,
+    ultimo_correlativo: ultimoCorrelativo,
+    proximo_correlativo: proximoCorrelativo,
+    comprobante_proximo: `${serie}-${String(proximoCorrelativo).padStart(8, '0')}`,
+  };
+}
+
+/**
+ * Marca una boleta como PENDIENTE_ANULACION.
+ * La boleta será anulada cuando se envíe el resumen diario a SUNAT.
+ */
+async marcarBoletaPendienteAnulacion(
+  ventaId: string,
+  empresaId: string,
+  contexto?: ContextoUsuario,
+) {
+  const venta = await this.dataSource.manager.findOne(Venta, {
+    where: { id: ventaId, empresa_id: empresaId },
+  });
+  if (!venta) throw new BadRequestException('Venta no encontrada');
+
+  if (venta.tipo_comprobante !== '03') {
+    throw new BadRequestException(
+      'Solo las boletas se anulan vía resumen diario. Para facturas usa comunicación de baja.',
+    );
+  }
+
+  if (venta.estado_sunat !== 'ACEPTADO') {
+    throw new BadRequestException(
+      'Solo se pueden anular boletas aceptadas por SUNAT',
+    );
+  }
+
+  venta.estado_sunat = 'PENDIENTE_ANULACION';
+  await this.dataSource.manager.save(venta);
+
+  // Auditoría
+  if (contexto) {
+    await this.auditoriaService.registrar({
+      empresa_id: empresaId,
+      usuario_id: contexto.usuario_id,
+      usuario_email: contexto.usuario_email,
+      usuario_rol: contexto.usuario_rol,
+      accion: 'MARCAR_BOLETA_PENDIENTE_ANULACION',
+      recurso: 'venta',
+      recurso_id: venta.id,
+      datos_despues: {
+        comprobante: `${venta.serie}-${venta.correlativo}`,
+      },
+      ip: contexto.ip,
+      user_agent: contexto.user_agent,
+    });
+  }
+
+  return {
+    mensaje: 'Boleta marcada para anulación. Se enviará a SUNAT en el próximo resumen diario.',
+    venta_id: venta.id,
+    estado: 'PENDIENTE_ANULACION',
+  };
+}
 }

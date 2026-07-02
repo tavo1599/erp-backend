@@ -296,4 +296,44 @@ async generarPreviewPdf(
   });
 }
 
+/**
+ * Verifica si la empresa está lista para emitir comprobantes.
+ * Revisa credenciales SOL en BD y certificado en el motor Java.
+ */
+async verificarConfiguracion(empresaId: string) {
+  const empresa = await this.empresaRepository.findOne({ where: { id: empresaId } });
+  if (!empresa) throw new BadRequestException('Empresa no encontrada');
+
+  const tieneCredencialesSol = !!(empresa.sol_usuario && empresa.sol_clave);
+  
+  // Verificar certificado preguntando al motor Java
+  let tieneCertificado = false;
+  try {
+    const motorJavaUrl = process.env.JAVA_MOTOR_URL || 'http://localhost:8089';
+    const resp = await firstValueFrom(
+      this.httpService.get(`${motorJavaUrl}/api/certificados/${empresa.ruc}/existe`, {
+        timeout: 5000,
+      }),
+    );
+    tieneCertificado = resp.data?.existe === true;
+  } catch {
+    tieneCertificado = false;
+  }
+
+  const faltantes: string[] = [];
+  if (!tieneCertificado) faltantes.push('certificado');
+  if (!tieneCredencialesSol) faltantes.push('credenciales_sol');
+
+  return {
+    empresa_id: empresa.id,
+    ruc: empresa.ruc,
+    razon_social: empresa.razon_social,
+    ambiente: empresa.ambiente || 'beta',
+    tiene_certificado: tieneCertificado,
+    tiene_credenciales_sol: tieneCredencialesSol,
+    todo_listo: tieneCertificado && tieneCredencialesSol,
+    faltantes,
+  };
+}
+
 }

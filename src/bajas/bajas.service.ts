@@ -7,6 +7,7 @@ import { firstValueFrom } from 'rxjs';
 import { CreateBajaDto } from './dto/create-baja.dto';
 import { Baja } from './entities/baja.entity';
 import { Empresa } from '../empresas/entities/empresa.entity';
+import { fechaActualLima } from '../common/utils/fecha.util';
 
 @Injectable()
 export class BajasService {
@@ -53,7 +54,7 @@ async enviarBaja(dto: CreateBajaDto, empresaId: string) {
   }
 
   // Correlativo de la baja del día
-  const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' });
+const hoy = fechaActualLima();
   const bajasHoy = await this.bajaRepository
     .createQueryBuilder('baja')
     .where('baja.empresa_id = :empresaId', { empresaId })

@@ -9,6 +9,7 @@ import { Nota } from './entities/nota.entity';
 import { SerieComprobante } from '../ventas/entities/serie-comprobante.entity';
 import { Empresa } from '../empresas/entities/empresa.entity';
 import { Producto } from '../productos/entities/producto.entity';
+import { fechaActualLima, horaActualLima } from '../common/utils/fecha.util';
 
 interface ItemNota {
   producto: Producto;
@@ -74,9 +75,8 @@ const correlativoTentativo = (serieExistente?.ultimo_correlativo || 0) + 1;
     const totalIgv = totalGravadoSinIgv * 0.18;
     const importeTotal = totalGravadoSinIgv + totalIgv;
 
-    const ahora = new Date();
-    const fechaActual = ahora.toLocaleDateString('en-CA', { timeZone: 'America/Lima' });
-    const horaActual = ahora.toTimeString().split(' ')[0];
+ const fechaActual = fechaActualLima();
+const horaActual = horaActualLima();
     const tipoDocCliente = cliente_numero_documento.length === 11 ? '6' : '1';
 
     const payloadJava = {
