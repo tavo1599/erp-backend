@@ -203,6 +203,28 @@ export const CATALOGO_PERMISOS: PermisoCatalogo[] = [
     modulo: 'Auditoría',
     rolesPorDefecto: ['ADMIN_EMPRESA'],
   },
+
+  {
+  codigo: 'ver_almacenes',
+  nombre: 'Ver almacenes',
+  descripcion: 'Ver lista de almacenes de la empresa',
+  modulo: 'Almacenes',
+  rolesPorDefecto: ['ADMIN_EMPRESA', 'VENDEDOR', 'CONTADOR'],
+},
+{
+  codigo: 'crear_almacenes',
+  nombre: 'Crear almacenes',
+  descripcion: 'Crear nuevos almacenes',
+  modulo: 'Almacenes',
+  rolesPorDefecto: ['ADMIN_EMPRESA'],
+},
+{
+  codigo: 'editar_almacenes',
+  nombre: 'Editar almacenes',
+  descripcion: 'Editar y desactivar almacenes',
+  modulo: 'Almacenes',
+  rolesPorDefecto: ['ADMIN_EMPRESA'],
+},
 ];
 
 // Roles editables (NO incluye SUPER_ADMIN, que tiene todos los permisos siempre)

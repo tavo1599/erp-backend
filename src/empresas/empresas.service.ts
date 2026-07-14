@@ -336,4 +336,19 @@ async verificarConfiguracion(empresaId: string) {
   };
 }
 
+async actualizarCuentaDetraccion(
+  empresaId: string, 
+  cuenta_detraccion: string,
+  cuenta_detraccion_cci?: string,
+) {
+  const empresa = await this.empresaRepository.findOne({ where: { id: empresaId } });
+  if (!empresa) throw new BadRequestException('Empresa no encontrada');
+
+  empresa.cuenta_detraccion = cuenta_detraccion;
+  empresa.cuenta_detraccion_cci = cuenta_detraccion_cci || null;
+  await this.empresaRepository.save(empresa);
+
+  return { mensaje: 'Cuenta de detracción actualizada correctamente' };
+}
+
 }

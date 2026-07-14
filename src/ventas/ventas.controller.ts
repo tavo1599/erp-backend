@@ -91,6 +91,11 @@ proximoCorrelativo(
   );
 }
 
+@Get('catalogo-detracciones')
+listarCatalogoDetracciones() {
+  return this.ventasService.listarCatalogoDetracciones();
+}
+
   @Permiso('ver_ventas')
   @Get(':id')
   obtener(@Param('id') id: string, @Request() req: any) {
@@ -179,4 +184,6 @@ marcarParaAnulacion(@Param('id') id: string, @Request() req: any) {
     ip: req.ip,
   });
 }
+
+
 }

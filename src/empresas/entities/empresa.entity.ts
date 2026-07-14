@@ -89,4 +89,11 @@ frase_pie_pdf: string | null;
 
 @Column({ type: 'text', nullable: true })
 cuentas_bancarias: string | null; // texto libre con cuentas
+
+// Cuenta de detracciones (Banco de la Nación)
+@Column({ type: 'varchar', length: 50, nullable: true })
+cuenta_detraccion: string | null;
+
+@Column({ type: 'varchar', length: 50, nullable: true })
+cuenta_detraccion_cci: string | null;
 }

@@ -212,4 +212,16 @@ export class EmpresasController {
     });
     res.send(pdf);
   }
+
+  @Patch('mi-empresa/cuenta-detraccion')
+actualizarCuentaDetraccion(
+  @Body() body: { cuenta_detraccion: string; cuenta_detraccion_cci?: string },
+  @Request() req: any,
+) {
+  return this.empresasService.actualizarCuentaDetraccion(
+    req.user.empresa_id,
+    body.cuenta_detraccion,
+    body.cuenta_detraccion_cci,
+  );
+}
 }

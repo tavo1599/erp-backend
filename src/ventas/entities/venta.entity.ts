@@ -78,6 +78,22 @@ total_inafecto: number;
   @Column({ type: 'varchar', default: 'PAGADO' })
   estado_pago: string; // PAGADO, PENDIENTE, PARCIAL
 
+  // Detracción (si aplica)
+  @Column({ type: 'boolean', default: false })
+  tiene_detraccion: boolean;
+
+  @Column({ type: 'varchar', length: 3, nullable: true })
+  codigo_detraccion: string | null;
+
+  @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
+  porcentaje_detraccion: number | null;
+
+  @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
+  monto_detraccion: number | null;
+
+  @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
+  saldo_a_pagar: number | null;
+
   @Column({ type: 'date', nullable: true })
   fecha_vencimiento: Date | null; // para ventas a crédito@Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
 descuento_total: number;

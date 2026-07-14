@@ -4,6 +4,7 @@ import {
   IsOptional,
   IsNumber,
   IsIn,
+  IsBoolean,
   Min,
   Max,
   MaxLength,
@@ -49,10 +50,10 @@ export class CreateProductoDto {
   precio_compra?: number;
 
   @IsNumber()
-@Min(0)
-@Max(99999)
-@IsOptional()
-peso_unitario?: number;
+  @Min(0)
+  @Max(99999)
+  @IsOptional()
+  peso_unitario?: number;
 
   @IsNumber()
   @Min(0)
@@ -64,4 +65,20 @@ peso_unitario?: number;
   @MaxLength(500)
   @IsOptional()
   descripcion?: string;
+
+  // ============ DETRACCIÓN SUNAT ============
+  @IsBoolean()
+  @IsOptional()
+  aplica_detraccion?: boolean;
+
+  @IsString()
+  @MaxLength(3)
+  @IsOptional()
+  codigo_detraccion?: string;
+
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  @IsOptional()
+  porcentaje_detraccion?: number;
 }

@@ -15,6 +15,10 @@ import { FinanzasService } from '../finanzas/finanzas.service';
 import { BajasService } from '../bajas/bajas.service';
 import { VentaPago } from './entities/venta-pago.entity';
 import { AuditoriaService } from '../auditoria/auditoria.service';
+import { 
+  CATALOGO_DETRACCIONES, 
+  MONTO_MINIMO_DETRACCION,
+} from './catalogo-detracciones';
 import { fechaActualLima, horaActualLima } from '../common/utils/fecha.util';
 
 interface ItemResuelto {
@@ -182,6 +186,60 @@ const correlativoTentativo = (serieExistente?.ultimo_correlativo || 0) + 1;
     const totalIgv = totalGravadoSinIgv * 0.18;
     const importeTotal = totalGravadoSinIgv + totalIgv + totalExonerado + totalInafecto;
 
+    // ============================================================
+// DETRACCIÓN: verificar si aplica
+// ============================================================
+let tieneDetraccion = false;
+let codigoDetraccion: string | null = null;
+let porcentajeDetraccion: number | null = null;
+let montoDetraccion: number | null = null;
+let saldoAPagar: number | null = null;
+
+// Reglas para aplicar detracción:
+// 1. Solo facturas (tipo '01') - NO boletas
+// 2. Cliente debe ser empresa (RUC = 11 dígitos)
+// 3. Monto total debe superar S/700
+// 4. Al menos un producto debe tener aplica_detraccion = true
+if (
+  tipo_comprobante === '01' &&
+  cliente_numero_documento.length === 11 &&
+  importeTotal > MONTO_MINIMO_DETRACCION
+) {
+  // Buscar el producto con detracción con MAYOR porcentaje
+  // (SUNAT dice: si hay múltiples, usar la de mayor porcentaje)
+  const productosConDetraccion = itemsResueltos.filter(
+    (item) => item.producto.aplica_detraccion && item.producto.codigo_detraccion,
+  );
+
+  if (productosConDetraccion.length > 0) {
+    // Ordenar por porcentaje desc y tomar el mayor
+    const productoElegido = productosConDetraccion.reduce((prev, curr) => {
+      const prevPct = Number(prev.producto.porcentaje_detraccion || 0);
+      const currPct = Number(curr.producto.porcentaje_detraccion || 0);
+      return currPct > prevPct ? curr : prev;
+    });
+
+    codigoDetraccion = productoElegido.producto.codigo_detraccion!;
+    porcentajeDetraccion = Number(productoElegido.producto.porcentaje_detraccion);
+    montoDetraccion = Math.round((importeTotal * porcentajeDetraccion / 100) * 100) / 100;
+    saldoAPagar = Math.round((importeTotal - montoDetraccion) * 100) / 100;
+    tieneDetraccion = true;
+
+    console.log('>>> DETRACCIÓN aplicada:', {
+      codigo: codigoDetraccion,
+      porcentaje: porcentajeDetraccion,
+      montoDetraccion,
+      saldoAPagar,
+    });
+  }
+}
+
+if (tieneDetraccion && !empresa.cuenta_detraccion) {
+  throw new BadRequestException(
+    'Esta factura requiere detracción, pero tu empresa no tiene configurada la cuenta del Banco de la Nación. Configúrala en "Seguridad SUNAT".',
+  );
+}
+
 const fechaActual = fechaActualLima();
 const horaActual = horaActualLima();
 
@@ -219,6 +277,13 @@ const horaActual = horaActualLima();
       totalInafecto: Number(totalInafecto.toFixed(2)),
       totalIgv: Number(totalIgv.toFixed(2)),
       importeTotal: Number(importeTotal.toFixed(2)),
+      // Detracción (si aplica)
+      tieneDetraccion: tieneDetraccion,
+      codigoDetraccion: codigoDetraccion,
+      porcentajeDetraccion: porcentajeDetraccion,
+      montoDetraccion: montoDetraccion,
+      saldoAPagar: saldoAPagar,
+      cuentaDetraccionBN: empresa.cuenta_detraccion || null,
       items: itemsResueltos.map((item, index) => {
         const tipoIgv = item.producto.tipo_igv || '10';
         const esGravado = tipoIgv === '10';
@@ -390,6 +455,11 @@ if (serieActual) {
     condicion_pago: condicionPago,
     estado_pago: condicionPago === 'CONTADO' ? 'PAGADO' : 'PENDIENTE',
     fecha_vencimiento: fechaVencimiento,
+      tiene_detraccion: tieneDetraccion,
+  codigo_detraccion: codigoDetraccion,
+  porcentaje_detraccion: porcentajeDetraccion,
+  monto_detraccion: montoDetraccion,
+  saldo_a_pagar: saldoAPagar,
     detalles: itemsDetalle,
   });
 
@@ -430,32 +500,38 @@ if (serieActual) {
   const comprobante = `${serie}-${String(correlativoTentativo).padStart(8, '0')}`;
   const montoTotal = Number(importeTotal.toFixed(2));
 
-  if (condicionPago === 'CONTADO') {
-    await this.finanzasService.registrarCaja(
-      {
-        empresa_id: empresaId,
-        tipo: 'INGRESO',
-        concepto: `Venta al contado ${comprobante}`,
-        monto: montoTotal,
-        referencia: comprobante,
-        metodo_pago: 'EFECTIVO',
-      },
-      manager,
-    );
-  } else {
-    await this.finanzasService.crearCuentaPorCobrar(
-      {
-        empresa_id: empresaId,
-        venta_id: ventaGuardadaTx.id,
-        cliente_documento: cliente_numero_documento,
-        cliente_razon_social,
-        comprobante,
-        monto_total: montoTotal,
-        fecha_vencimiento: fechaVencimiento,
-      },
-      manager,
-    );
-  }
+  const montoEnFinanzas = tieneDetraccion 
+  ? Number(saldoAPagar!.toFixed(2))
+  : Number(importeTotal.toFixed(2));
+
+ if (condicionPago === 'CONTADO') {
+  await this.finanzasService.registrarCaja(
+    {
+      empresa_id: empresaId,
+      tipo: 'INGRESO',
+      concepto: tieneDetraccion 
+        ? `Venta ${comprobante} (saldo, detracción S/${montoDetraccion} va a BN)`
+        : `Venta al contado ${comprobante}`,
+      monto: montoEnFinanzas,
+      referencia: comprobante,
+      metodo_pago: 'EFECTIVO',
+    },
+    manager,
+  );
+} else {
+  await this.finanzasService.crearCuentaPorCobrar(
+    {
+      empresa_id: empresaId,
+      venta_id: ventaGuardadaTx.id,
+      cliente_documento: cliente_numero_documento,
+      cliente_razon_social,
+      comprobante,
+      monto_total: montoEnFinanzas,
+      fecha_vencimiento: fechaVencimiento,
+    },
+    manager,
+  );
+}
 
   return ventaGuardadaTx;
 });
@@ -488,13 +564,24 @@ if (contexto) {
     // PASO 5: Respuesta al frontend
     // ============================================================
     if (sunatAcepto) {
-      return {
-        mensaje: 'Venta registrada y aceptada por SUNAT',
-        venta_id: ventaGuardada.id,
-        comprobante: `${serie}-${correlativoTentativo}`,
-        estado: 'ACEPTADO',
-        sunat_descripcion: sunatData.sunatDescription,
-      };
+      // ============================================================
+// PASO 5: Respuesta al frontend
+// ============================================================
+return {
+  mensaje: tieneDetraccion
+    ? `Factura emitida con detracción. Saldo a pagar: S/ ${saldoAPagar!.toFixed(2)} (detracción S/ ${montoDetraccion!.toFixed(2)} al BN)`
+    : 'Venta registrada y aceptada por SUNAT',
+  venta_id: ventaGuardada.id,
+  comprobante: `${serie}-${correlativoTentativo}`,
+  estado: 'ACEPTADO',
+  sunat_descripcion: sunatData.sunatDescription,
+  // Info de detracción para el frontend
+  tiene_detraccion: tieneDetraccion,
+  codigo_detraccion: codigoDetraccion,
+  porcentaje_detraccion: porcentajeDetraccion,
+  monto_detraccion: montoDetraccion,
+  saldo_a_pagar: saldoAPagar,
+};
     } else {
       return {
   mensaje: 'Venta registrada y aceptada por SUNAT',
@@ -909,5 +996,9 @@ async marcarBoletaPendienteAnulacion(
     venta_id: venta.id,
     estado: 'PENDIENTE_ANULACION',
   };
+}
+
+listarCatalogoDetracciones() {
+  return CATALOGO_DETRACCIONES;
 }
 }

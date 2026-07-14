@@ -6,6 +6,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { EmpresasModule } from './empresas/empresas.module';
+import { AlmacenesModule } from './almacenes/almacenes.module';
 import { UsuariosModule } from './usuarios/usuarios.module';
 import { AuthModule } from './auth/auth.module';
 import { ProductosModule } from './productos/productos.module';
@@ -95,6 +96,8 @@ import { PermisosModule } from './permisos/permisos.module';
     GuiasRemisionModule,
 
     PermisosModule,
+
+    AlmacenesModule,
 
     SunatConsultasModule,
     ThrottlerModule.forRoot([

@@ -39,6 +39,16 @@ peso_unitario: number | null; // en kilogramos (para guías de remisión)
   @Column({ type: 'varchar', default: 'BIEN' })
   tipo_bien_servicio: string; // 'BIEN' o 'SERVICIO'
 
+  // Detracción SUNAT
+  @Column({ type: 'boolean', default: false })
+  aplica_detraccion: boolean;
+
+  @Column({ type: 'varchar', length: 3, nullable: true })
+  codigo_detraccion: string | null;
+
+  @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
+  porcentaje_detraccion: number | null;
+
   @CreateDateColumn()
   created_at: Date;
 }
