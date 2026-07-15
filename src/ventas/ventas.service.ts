@@ -15,6 +15,8 @@ import { FinanzasService } from '../finanzas/finanzas.service';
 import { BajasService } from '../bajas/bajas.service';
 import { VentaPago } from './entities/venta-pago.entity';
 import { AuditoriaService } from '../auditoria/auditoria.service';
+import { StockService } from '../stock/stock.service';
+import { Almacen } from '../almacenes/entities/almacen.entity';
 import { 
   CATALOGO_DETRACCIONES, 
   MONTO_MINIMO_DETRACCION,
@@ -52,6 +54,9 @@ export class VentasService {
     private readonly productoRepository: Repository<Producto>,
     @InjectRepository(Cliente)
     private readonly clienteRepository: Repository<Cliente>,
+    @InjectRepository(Almacen)
+private readonly almacenRepository: Repository<Almacen>,
+private readonly stockService: StockService,
   ) {}
 
   async crearVentaInterna(
@@ -92,6 +97,34 @@ export class VentasService {
     if (!empresa) throw new BadRequestException('Empresa no encontrada');
 
     // ============================================================
+// PASO 0.5: Resolver almacén (usa principal si no se envía)
+// ============================================================
+let almacenIdFinal: string;
+if (createVentaDto.almacen_id) {
+  const almacen = await this.almacenRepository.findOne({
+    where: { 
+      id: createVentaDto.almacen_id, 
+      empresa_id: empresaId,
+      activo: true,
+    },
+  });
+  if (!almacen) {
+    throw new BadRequestException('Almacén no encontrado o inactivo');
+  }
+  almacenIdFinal = almacen.id;
+} else {
+  const almacenPrincipal = await this.almacenRepository.findOne({
+    where: { empresa_id: empresaId, es_principal: true, activo: true },
+  });
+  if (!almacenPrincipal) {
+    throw new BadRequestException(
+      'No hay almacén principal configurado. Contacta al administrador.',
+    );
+  }
+  almacenIdFinal = almacenPrincipal.id;
+}
+
+    // ============================================================
     // PASO 0: Resolver productos + validar stock + descuentos
     // ============================================================
     const itemsResueltos: ItemResuelto[] = [];
@@ -110,11 +143,22 @@ export class VentasService {
         throw new BadRequestException(`El producto "${producto.nombre}" está inactivo`);
       }
       if (Number(producto.stock_actual) < Number(detalle.cantidad)) {
-        throw new BadRequestException(
-          `Stock insuficiente para "${producto.nombre}". Disponible: ${producto.stock_actual}, solicitado: ${detalle.cantidad}`,
-        );
-      }
+  throw new BadRequestException(
+    `Stock insuficiente para "${producto.nombre}". Disponible: ${producto.stock_actual}, solicitado: ${detalle.cantidad}`,
+  );
+}
 
+// Validar stock en el almacén específico
+const stockEnAlmacen = await this.stockService.obtenerStock(
+  producto.id,
+  almacenIdFinal,
+);
+if (stockEnAlmacen < Number(detalle.cantidad)) {
+  throw new BadRequestException(
+    `Stock insuficiente en el almacén para "${producto.nombre}". ` +
+    `Disponible en almacén: ${stockEnAlmacen}, solicitado: ${detalle.cantidad}`,
+  );
+}
       const descuentoLineaPct = Number(detalle.descuento_porcentaje || 0);
       if (descuentoLineaPct < 0 || descuentoLineaPct > 100) {
         throw new BadRequestException(
@@ -402,18 +446,28 @@ if (serieActual) {
 }
 
   // Descontar stock
-  for (const item of itemsResueltos) {
-    await this.kardexService.registrarMovimiento(
-      {
-        producto_id: item.producto.id,
-        empresa_id: empresaId,
-        tipo_movimiento: 'SALIDA_VENTA',
-        cantidad: item.cantidad,
-        referencia_documento: `${serie}-${correlativoTentativo}`,
-      },
-      manager,
-    );
-  }
+  // Descontar stock (kardex global + almacén específico)
+for (const item of itemsResueltos) {
+  // 1. Kardex global (como antes)
+  await this.kardexService.registrarMovimiento(
+    {
+      producto_id: item.producto.id,
+      empresa_id: empresaId,
+      tipo_movimiento: 'SALIDA_VENTA',
+      cantidad: item.cantidad,
+      referencia_documento: `${serie}-${correlativoTentativo}`,
+    },
+    manager,
+  );
+
+  // 2. Descontar del stock del almacén (NUEVO)
+  await this.stockService.restarStock(
+    item.producto.id,
+    almacenIdFinal,
+    item.cantidad,
+    manager,  // dentro de la misma transacción
+  );
+}
 
   // Crear detalles
   const itemsDetalle = itemsResueltos.map((item) =>

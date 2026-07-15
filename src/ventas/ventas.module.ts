@@ -17,16 +17,19 @@ import { BajasModule } from '../bajas/bajas.module';
 import { VentaPago } from './entities/venta-pago.entity';
 import { AuditoriaModule } from '../auditoria/auditoria.module';
 import { PermisosModule } from '../permisos/permisos.module';
+import { StockModule } from '../stock/stock.module';
+import { Almacen } from '../almacenes/entities/almacen.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Venta, VentaDetalle, VentaPago, SerieComprobante, Empresa, Producto, Cliente]), // ← AGREGAR Producto
+    TypeOrmModule.forFeature([Venta, VentaDetalle, VentaPago, SerieComprobante, Empresa, Producto, Cliente, Almacen]),
     KardexModule,
     HttpModule,
     FinanzasModule,
     BajasModule,
     AuditoriaModule,
     PermisosModule,
+    StockModule,
   ],
   controllers: [VentasController],
   providers: [VentasService, PdfService],

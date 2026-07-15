@@ -30,6 +30,7 @@ import { ConductoresModule } from './conductores/conductores.module';
 import { DireccionesTrasladoModule } from './direcciones-traslado/direcciones-traslado.module';
 import { GuiasRemisionModule } from './guias-remision/guias-remision.module';
 import { PermisosModule } from './permisos/permisos.module';
+import { StockModule } from './stock/stock.module';
 @Module({
   imports: [
     // 1. Iniciamos el módulo de variables de entorno
@@ -98,6 +99,8 @@ import { PermisosModule } from './permisos/permisos.module';
     PermisosModule,
 
     AlmacenesModule,
+
+    StockModule,
 
     SunatConsultasModule,
     ThrottlerModule.forRoot([

@@ -114,4 +114,10 @@ export class CreateVentaDto {
   @Type(() => PagoDto)
   @IsOptional()
   pagos?: PagoDto[];
+
+  // Almacén de donde sale la mercadería (opcional, usa el principal si no se envía)
+  @IsUUID()
+  @IsOptional()
+  almacen_id?: string;
+
 }
