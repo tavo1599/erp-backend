@@ -16,6 +16,11 @@ class CompraDetalleDto {
 }
 
 export class CreateCompraDto {
+  // Almacén al que ingresa la mercadería. Opcional: si no se envía, usa el principal.
+  @IsOptional()
+  @IsString()
+  almacen_id?: string;
+
   @IsString()
   @IsNotEmpty({ message: 'El proveedor es obligatorio' })
   proveedor_id: string;

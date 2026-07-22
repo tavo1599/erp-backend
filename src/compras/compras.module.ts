@@ -7,14 +7,17 @@ import { Compra } from './entities/compra.entity';
 import { CompraDetalle } from './entities/compra-detalle.entity';
 import { Producto } from '../productos/entities/producto.entity';
 import { Proveedor } from '../proveedores/entities/proveedore.entity';
+import { Almacen } from '../almacenes/entities/almacen.entity';
 import { KardexModule } from '../kardex/kardex.module';
+import { StockModule } from '../stock/stock.module';
 import { FinanzasModule } from '../finanzas/finanzas.module';
 import { PermisosModule } from '../permisos/permisos.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Compra, CompraDetalle, Producto, Proveedor]),
+    TypeOrmModule.forFeature([Compra, CompraDetalle, Producto, Proveedor, Almacen]),
     KardexModule,
+    StockModule,
     FinanzasModule,
     PermisosModule,
   ],

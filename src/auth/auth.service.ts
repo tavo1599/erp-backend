@@ -4,7 +4,6 @@ import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { ConfigService } from '@nestjs/config';
-import * as crypto from 'crypto';
 import { Usuario } from '../usuarios/entities/usuario.entity';
 import { EmpresaUsuario } from '../usuarios/entities/empresa-usuario.entity';
 import { Empresa } from '../empresas/entities/empresa.entity';
@@ -37,7 +36,22 @@ export class AuthService {
       expiresIn: this.configService.get('JWT_ACCESS_EXPIRES') || '15m',
     });
 
-    const refreshToken = crypto.randomBytes(48).toString('hex');
+    // El refresh token es un JWT firmado (JWT_REFRESH_SECRET) que lleva DENTRO
+    // la empresa de la sesión. Así, al renovar, reconectamos a la MISMA empresa
+    // en vez de adivinar (evita que un usuario multi-empresa reciba token de otra).
+    const refreshToken = await this.jwtService.signAsync(
+      {
+        sub: payload.sub,
+        empresa_id: payload.empresa_id,
+        rol: payload.rol,
+        type: 'refresh',
+      },
+      {
+        secret: this.configService.get('JWT_REFRESH_SECRET'),
+        expiresIn: this.configService.get('JWT_REFRESH_EXPIRES') || '7d',
+      },
+    );
+
     const expira = new Date();
     expira.setDate(expira.getDate() + 7);
 
@@ -231,11 +245,22 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token requerido');
     }
 
-    const usuario = await this.usuarioRepository.findOne({
-      where: { refresh_token: refreshToken },
-    });
+    // 1. Verificar firma y expiración del refresh token (es un JWT).
+    let payloadRefresh: any;
+    try {
+      payloadRefresh = await this.jwtService.verifyAsync(refreshToken, {
+        secret: this.configService.get('JWT_REFRESH_SECRET'),
+      });
+    } catch {
+      throw new UnauthorizedException('Refresh token inválido o expirado');
+    }
 
-    if (!usuario) {
+    // 2. Buscar el usuario y validar que este refresh token siga vigente
+    //    (permite revocación: logout pone refresh_token = null).
+    const usuario = await this.usuarioRepository.findOne({
+      where: { id: payloadRefresh.sub },
+    });
+    if (!usuario || usuario.refresh_token !== refreshToken) {
       throw new UnauthorizedException('Refresh token inválido');
     }
 
@@ -243,17 +268,20 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token expirado, vuelve a iniciar sesión');
     }
 
+    // 3. Reconectar a LA MISMA empresa que venía firmada en el token, validando
+    //    que el usuario todavía pertenezca a ella y tomando su rol actual.
+    const empresaId = payloadRefresh.empresa_id;
     const relacion = await this.empresaUsuarioRepository.findOne({
-      where: { usuario_id: usuario.id },
+      where: { usuario_id: usuario.id, empresa_id: empresaId },
     });
     if (!relacion) {
-      throw new UnauthorizedException('Sin empresa asignada');
+      throw new UnauthorizedException('Ya no perteneces a esta empresa');
     }
 
     const payload = {
       sub: usuario.id,
       email: usuario.email,
-      empresa_id: relacion.empresa_id,
+      empresa_id: empresaId,
       rol: relacion.rol,
     };
 

@@ -10,6 +10,10 @@ export class Compra {
   @Column({ type: 'uuid' })
   empresa_id: string;
 
+  // Almacén al que ingresa la mercadería comprada (nullable para compras históricas).
+  @Column({ type: 'uuid', nullable: true })
+  almacen_id: string | null;
+
   @Column({ type: 'uuid' })
   proveedor_id: string;
 

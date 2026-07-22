@@ -10,6 +10,10 @@ export class Venta {
   @Column({ type: 'uuid' })
   empresa_id: string;
 
+  // Almacén de origen de la mercadería (nullable para ventas históricas).
+  @Column({ type: 'uuid', nullable: true })
+  almacen_id: string | null;
+
   // Datos del Cliente
   @Column({ type: 'varchar', length: 15 })
   cliente_numero_documento: string;

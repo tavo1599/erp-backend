@@ -84,7 +84,22 @@ export class EmpresasService {
   }
 
   async findAll() {
-    return await this.empresaRepository.find();
+    // Nunca exponer credenciales sensibles (sol_clave, sunat_client_secret) en un listado.
+    const empresas = await this.empresaRepository.find();
+    return empresas.map((e) => ({
+      id: e.id,
+      ruc: e.ruc,
+      razon_social: e.razon_social,
+      nombre_comercial: e.nombre_comercial,
+      estado: e.estado,
+      ambiente: e.ambiente,
+      plan: e.plan,
+      estado_suscripcion: e.estado_suscripcion,
+      fecha_fin_suscripcion: e.fecha_fin_suscripcion,
+      comprobantes_emitidos_mes: e.comprobantes_emitidos_mes,
+      limite_comprobantes_mes: e.limite_comprobantes_mes,
+      created_at: e.created_at,
+    }));
   }
 
   // Obtener los datos de una empresa

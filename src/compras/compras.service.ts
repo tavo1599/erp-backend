@@ -7,7 +7,9 @@ import { Compra } from './entities/compra.entity';
 import { CompraDetalle } from './entities/compra-detalle.entity';
 import { Producto } from '../productos/entities/producto.entity';
 import { Proveedor } from '../proveedores/entities/proveedore.entity';
+import { Almacen } from '../almacenes/entities/almacen.entity';
 import { KardexService } from '../kardex/kardex.service';
+import { StockService } from '../stock/stock.service';
 import { FinanzasService } from '../finanzas/finanzas.service';
 
 interface ItemCompra {
@@ -21,12 +23,35 @@ export class ComprasService {
   constructor(
     private readonly dataSource: DataSource,
     private readonly kardexService: KardexService,
+    private readonly stockService: StockService,
     private readonly finanzasService: FinanzasService,
     @InjectRepository(Producto)
     private readonly productoRepository: Repository<Producto>,
     @InjectRepository(Proveedor)
     private readonly proveedorRepository: Repository<Proveedor>,
+    @InjectRepository(Almacen)
+    private readonly almacenRepository: Repository<Almacen>,
   ) {}
+
+  // Resuelve el almacén a usar: el enviado (validado) o el principal de la empresa.
+  private async resolverAlmacenId(empresaId: string, almacenId?: string): Promise<string> {
+    if (almacenId) {
+      const almacen = await this.almacenRepository.findOne({
+        where: { id: almacenId, empresa_id: empresaId, activo: true },
+      });
+      if (!almacen) {
+        throw new BadRequestException('El almacén seleccionado no existe o no está activo.');
+      }
+      return almacen.id;
+    }
+    const principal = await this.almacenRepository.findOne({
+      where: { empresa_id: empresaId, es_principal: true, activo: true },
+    });
+    if (!principal) {
+      throw new BadRequestException('No hay almacén principal configurado. Crea uno primero.');
+    }
+    return principal.id;
+  }
 
   async crearCompra(dto: CreateCompraDto, empresaId: string) {
     const { proveedor_id, tipo_documento, serie_documento, numero_documento, fecha_compra, detalles } = dto;
@@ -36,6 +61,9 @@ export class ComprasService {
     if (!detalles || detalles.length === 0) {
       throw new BadRequestException('La compra debe tener al menos un producto');
     }
+
+    // Almacén de ingreso: el enviado (validado) o el principal.
+    const almacenId = await this.resolverAlmacenId(empresaId, dto.almacen_id);
 
     // Validar proveedor
     const proveedor = await this.proveedorRepository.findOne({
@@ -86,6 +114,7 @@ export class ComprasService {
 
       const nuevaCompra = manager.create(Compra, {
         empresa_id: empresaId,
+        almacen_id: almacenId,
         proveedor_id,
         tipo_documento,
         serie_documento,
@@ -103,7 +132,7 @@ export class ComprasService {
 
       const guardada = await manager.save(nuevaCompra);
 
-      // 3. Entrada de stock por cada producto (vía kardex)
+      // 3. Entrada de stock por cada producto: kardex (global) + almacén específico
       for (const it of items) {
         await this.kardexService.registrarMovimiento(
           {
@@ -113,6 +142,13 @@ export class ComprasService {
             cantidad: it.cantidad,
             referencia_documento: `Compra ${serie_documento}-${numero_documento}`,
           },
+          manager,
+        );
+
+        await this.stockService.sumarStock(
+          it.producto.id,
+          almacenId,
+          it.cantidad,
           manager,
         );
       }
@@ -243,7 +279,16 @@ async obtenerCompra(id: string, empresaId: string) {
       throw new BadRequestException('Esta compra ya está anulada');
     }
 
-    // 1. Revertir el stock: lo que entró, ahora sale (ajuste de salida)
+    // Almacén del que se retira el stock: el de la compra o el principal (histórico).
+    let almacenReverso = compra.almacen_id;
+    if (!almacenReverso) {
+      const principal = await manager.findOne(Almacen, {
+        where: { empresa_id: empresaId, es_principal: true, activo: true },
+      });
+      almacenReverso = principal?.id ?? null;
+    }
+
+    // 1. Revertir el stock: lo que entró, ahora sale (kardex global + almacén)
     for (const detalle of compra.detalles) {
       // Verificar que haya stock suficiente para revertir
       const producto = await manager.findOne(Producto, {
@@ -265,6 +310,15 @@ async obtenerCompra(id: string, empresaId: string) {
         },
         manager,
       );
+
+      if (almacenReverso) {
+        await this.stockService.restarStock(
+          detalle.producto_id,
+          almacenReverso,
+          Number(detalle.cantidad),
+          manager,
+        );
+      }
     }
 
     // 2. Revertir finanzas

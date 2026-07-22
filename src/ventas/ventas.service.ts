@@ -489,6 +489,7 @@ for (const item of itemsResueltos) {
   // Crear venta con estado ACEPTADO (siempre)
   const nuevaVenta = manager.create(Venta, {
     empresa_id: empresaId,
+    almacen_id: almacenIdFinal,
     cliente_numero_documento,
     cliente_razon_social,
     tipo_comprobante,
@@ -800,7 +801,17 @@ return {
         throw new BadRequestException('Esta venta ya está anulada');
       }
 
-      // 1. Devolver el stock
+      // Almacén al que se devuelve el stock: el de la venta o, para ventas
+      // históricas sin almacen_id, el principal de la empresa.
+      let almacenDevolucion = venta.almacen_id;
+      if (!almacenDevolucion) {
+        const principal = await manager.findOne(Almacen, {
+          where: { empresa_id: empresaId, es_principal: true, activo: true },
+        });
+        almacenDevolucion = principal?.id ?? null;
+      }
+
+      // 1. Devolver el stock (kardex global + almacén específico)
       for (const detalle of venta.detalles) {
         await this.kardexService.registrarMovimiento(
           {
@@ -812,6 +823,15 @@ return {
           },
           manager,
         );
+
+        if (almacenDevolucion) {
+          await this.stockService.sumarStock(
+            detalle.producto_id,
+            almacenDevolucion,
+            Number(detalle.cantidad),
+            manager,
+          );
+        }
       }
 
       // 2. Revertir finanzas

@@ -79,9 +79,12 @@ export class StockService {
     }
 
     const repo = manager ? manager.getRepository(StockAlmacen) : this.stockRepository;
-    
+
     let registro = await repo.findOne({
       where: { producto_id: productoId, almacen_id: almacenId },
+      // Lock pesimista dentro de transacción para serializar movimientos
+      // simultáneos del mismo producto/almacén (evita lost update).
+      lock: manager ? { mode: 'pessimistic_write' } : undefined,
     });
 
     if (!registro) {
@@ -115,6 +118,9 @@ export class StockService {
 
     const registro = await repo.findOne({
       where: { producto_id: productoId, almacen_id: almacenId },
+      // Lock pesimista dentro de transacción: cierra la carrera entre validar
+      // y descontar (evita sobreventa por ventas simultáneas).
+      lock: manager ? { mode: 'pessimistic_write' } : undefined,
     });
 
     if (!registro) {

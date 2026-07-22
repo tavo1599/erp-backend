@@ -22,14 +22,19 @@ import { CreateEmpresaDto } from './dto/create-empresa.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermisoGuard } from '../permisos/permiso.guard';
 import { Permiso } from '../permisos/permiso.decorator';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
+import { Rol } from '../auth/roles.enum';
 
 @Controller('empresas')
 export class EmpresasController {
   constructor(private readonly empresasService: EmpresasService) {}
 
   // ============================================================
-  // Crear empresa con certificado (PÚBLICO - sin guards, lo usa super admin al onboarding)
+  // Crear empresa con certificado (solo SUPER_ADMIN)
   // ============================================================
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Rol.SUPER_ADMIN)
   @Post()
   @UseInterceptors(FileInterceptor('certificado'))
   async create(
@@ -52,9 +57,10 @@ export class EmpresasController {
   }
 
   // ============================================================
-  // Listar todas las empresas (super admin)
+  // Listar todas las empresas (solo SUPER_ADMIN)
   // ============================================================
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Rol.SUPER_ADMIN)
   @Get()
   findAll(@Request() req: any) {
     return this.empresasService.findAll();
@@ -213,6 +219,8 @@ export class EmpresasController {
     res.send(pdf);
   }
 
+  @UseGuards(JwtAuthGuard, PermisoGuard)
+  @Permiso('editar_empresa')
   @Patch('mi-empresa/cuenta-detraccion')
 actualizarCuentaDetraccion(
   @Body() body: { cuenta_detraccion: string; cuenta_detraccion_cci?: string },

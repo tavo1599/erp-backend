@@ -6,6 +6,7 @@ import { Empresa } from '../empresas/entities/empresa.entity';
 import { Usuario } from '../usuarios/entities/usuario.entity';
 import { EmpresaUsuario } from '../usuarios/entities/empresa-usuario.entity';
 import { Venta } from '../ventas/entities/venta.entity';
+import { Almacen } from '../almacenes/entities/almacen.entity';
 import { CreateEmpresaDto } from '../empresas/dto/create-empresa.dto';
 import { Rol } from '../auth/roles.enum';
 import { fechaActualLima } from '../common/utils/fecha.util';
@@ -104,6 +105,16 @@ export class AdminService {
         rol: Rol.ADMIN_EMPRESA,
       });
       await manager.save(relacion);
+
+      // Crear un almacén principal por defecto. Ventas, compras y ajustes de
+      // stock trabajan por almacén, así que toda empresa debe tener al menos uno.
+      const almacenPrincipal = manager.create(Almacen, {
+        empresa_id: empresaGuardada.id,
+        nombre: 'Almacén Principal',
+        es_principal: true,
+        activo: true,
+      });
+      await manager.save(almacenPrincipal);
 
       return {
         mensaje: 'Empresa creada correctamente',
