@@ -8,6 +8,7 @@ import { ResumenDiario } from './entities/resumen.entity';
 import { Empresa } from '../empresas/entities/empresa.entity';
 import { Venta } from '../ventas/entities/venta.entity';
 import { fechaActualLima } from '../common/utils/fecha.util';
+import { cabecerasMotor } from '../common/motor-java.util';
 
 @Injectable()
 export class ResumenesService {
@@ -130,7 +131,9 @@ async enviarResumen(fecha: string, empresaId: string) {
   const motorJavaUrl = process.env.JAVA_MOTOR_URL || 'http://localhost:8089';
   try {
     const resp = await firstValueFrom(
-      this.httpService.post(`${motorJavaUrl}/api/resumenes/enviar`, payloadJava),
+      this.httpService.post(`${motorJavaUrl}/api/resumenes/enviar`, payloadJava, {
+        headers: cabecerasMotor(),
+      }),
     );
     sunatData = resp.data;
     ticket = sunatData?.ticket || null;
@@ -205,7 +208,7 @@ async consultarEstado(resumenId: string, empresaId: string) {
       this.httpService.post(
         `${motorJavaUrl}/api/resumenes/estado?ticket=${resumen.ticket}`,
         empresaPayload,
-        { timeout: 20000 },
+        { timeout: 20000, headers: cabecerasMotor() },
       ),
     );
     sunatData = resp.data;

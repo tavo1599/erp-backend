@@ -1,4 +1,5 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn } from 'typeorm';
+import { cifradoTransformer } from '../../common/crypto/crypto.util';
 
 @Entity('empresas') // Este será el nombre de la tabla en PostgreSQL
 export class Empresa {
@@ -27,14 +28,16 @@ export class Empresa {
   @Column({ type: 'varchar', nullable: true })
   sol_usuario: string;
 
-  @Column({ type: 'varchar', nullable: true })
+  // Cifrada en reposo (AES-256-GCM). En el código se lee/escribe en texto plano.
+  @Column({ type: 'varchar', nullable: true, transformer: cifradoTransformer })
   sol_clave: string;
 
   // Credenciales OAuth 2.0 para emitir Guías de Remisión Electrónicas
 @Column({ type: 'varchar', length: 100, nullable: true })
 sunat_client_id: string | null;
 
-@Column({ type: 'varchar', length: 200, nullable: true })
+// Cifrada en reposo. Sin length fijo para dar cabida al valor cifrado (más largo).
+@Column({ type: 'varchar', nullable: true, transformer: cifradoTransformer })
 sunat_client_secret: string | null;
 
 @Column({ type: 'varchar', length: 50, nullable: true })

@@ -123,6 +123,15 @@ export class ProductosService {
       producto.stock_actual = stockNuevo;
       await manager.save(producto);
 
+      // 1.b) Reflejar también en el stock por almacén (principal por defecto),
+      //      para mantener el invariante SUM(stock_almacen) == producto.stock_actual.
+      const almacenPrincipal = await manager.findOne(Almacen, {
+        where: { empresa_id: empresaId, es_principal: true, activo: true },
+      });
+      if (almacenPrincipal) {
+        await this.stockService.sumarStock(producto.id, almacenPrincipal.id, cantidad, manager);
+      }
+
       // 2) Registrar movimiento en el kardex
       const movimiento = manager.create(KardexMovimiento, {
         empresa_id: empresaId,
@@ -207,6 +216,19 @@ export class ProductosService {
       // 1) Actualizar stock del producto
       producto.stock_actual = stockNuevo;
       await manager.save(producto);
+
+      // 1.b) Reflejar en el stock por almacén (principal por defecto) para
+      //      mantener el invariante con producto.stock_actual.
+      const almacenPrincipal = await manager.findOne(Almacen, {
+        where: { empresa_id: empresaId, es_principal: true, activo: true },
+      });
+      if (almacenPrincipal) {
+        if (tipo === 'POSITIVO') {
+          await this.stockService.sumarStock(producto.id, almacenPrincipal.id, cantidad, manager);
+        } else {
+          await this.stockService.restarStock(producto.id, almacenPrincipal.id, cantidad, manager);
+        }
+      }
 
       // 2) Registrar movimiento en el kardex
       const movimiento = manager.create(KardexMovimiento, {

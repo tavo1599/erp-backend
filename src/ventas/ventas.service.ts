@@ -22,6 +22,7 @@ import {
   MONTO_MINIMO_DETRACCION,
 } from './catalogo-detracciones';
 import { fechaActualLima, horaActualLima } from '../common/utils/fecha.util';
+import { cabecerasMotor } from '../common/motor-java.util';
 
 interface ItemResuelto {
   producto: Producto;
@@ -374,7 +375,9 @@ const horaActual = horaActualLima();
     try {
       const motorJavaUrl = process.env.JAVA_MOTOR_URL || 'http://localhost:8089';
 const respuestaJava = await firstValueFrom(
-  this.httpService.post(`${motorJavaUrl}/api/comprobantes/emitir`, payloadJava),
+  this.httpService.post(`${motorJavaUrl}/api/comprobantes/emitir`, payloadJava, {
+    headers: cabecerasMotor(),
+  }),
 );
       sunatData = respuestaJava.data;
       sunatAcepto = sunatData?.success === true && sunatData?.sunatResponseCode === '0';

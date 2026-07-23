@@ -9,6 +9,7 @@ import { Multer } from 'multer';
 import { CreateEmpresaDto } from './dto/create-empresa.dto';
 import { Empresa } from './entities/empresa.entity';
 import { PdfService } from '../ventas/pdf.service';
+import { cabecerasMotor } from '../common/motor-java.util';
 
 @Injectable()
 export class EmpresasService {
@@ -51,7 +52,7 @@ export class EmpresasService {
 
       const respuestaJava = await firstValueFrom(
         this.httpService.post(urlJava, formData, {
-          headers: formData.getHeaders(),
+          headers: cabecerasMotor(formData.getHeaders()),
         }),
       );
 
@@ -187,7 +188,7 @@ const motorJavaUrl = process.env.JAVA_MOTOR_URL || 'http://localhost:8089';
       this.httpService.post(
         `${motorJavaUrl}/api/certificados/${empresa.ruc}/upload?ambiente=${empresa.ambiente}`,
         formData,
-        { headers: formData.getHeaders() },
+        { headers: cabecerasMotor(formData.getHeaders()) },
       ),
     );
   } catch (e: any) {
@@ -328,6 +329,7 @@ async verificarConfiguracion(empresaId: string) {
     const resp = await firstValueFrom(
       this.httpService.get(`${motorJavaUrl}/api/certificados/${empresa.ruc}/existe`, {
         timeout: 5000,
+        headers: cabecerasMotor(),
       }),
     );
     tieneCertificado = resp.data?.existe === true;

@@ -40,4 +40,11 @@ export class AdminController {
   kpis() {
     return this.adminService.kpisGlobales();
   }
+
+  // Utilidad de una sola vez: re-encripta las credenciales SUNAT que estén en
+  // texto plano (tras configurar ENCRYPTION_KEY). Se puede llamar más de una vez.
+  @Post('reencriptar-credenciales')
+  reencriptarCredenciales() {
+    return this.adminService.reencriptarCredenciales();
+  }
 }

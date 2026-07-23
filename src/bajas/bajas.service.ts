@@ -8,6 +8,7 @@ import { CreateBajaDto } from './dto/create-baja.dto';
 import { Baja } from './entities/baja.entity';
 import { Empresa } from '../empresas/entities/empresa.entity';
 import { fechaActualLima } from '../common/utils/fecha.util';
+import { cabecerasMotor } from '../common/motor-java.util';
 
 @Injectable()
 export class BajasService {
@@ -101,7 +102,9 @@ const hoy = fechaActualLima();
   const motorJavaUrl = process.env.JAVA_MOTOR_URL || 'http://localhost:8089';
   try {
     const resp = await firstValueFrom(
-      this.httpService.post(`${motorJavaUrl}/api/bajas/enviar`, payloadJava),
+      this.httpService.post(`${motorJavaUrl}/api/bajas/enviar`, payloadJava, {
+        headers: cabecerasMotor(),
+      }),
     );
     sunatData = resp.data;
     ticket = sunatData?.ticket || null;
@@ -181,7 +184,7 @@ const hoy = fechaActualLima();
         this.httpService.post(
           `${motorJavaUrl}/api/bajas/estado?ticket=${baja.ticket}`,
           empresaPayload,
-          { timeout: 20000 }, // 20 segundos
+          { timeout: 20000, headers: cabecerasMotor() }, // 20 segundos
         ),
       );
       sunatData = resp.data;

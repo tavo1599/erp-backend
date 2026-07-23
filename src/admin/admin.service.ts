@@ -154,6 +154,24 @@ export class AdminService {
     return { mensaje: `Empresa ${estado.toLowerCase()}`, empresa_id: empresaId };
   }
 
+  // Re-encripta en reposo las credenciales SUNAT existentes.
+  // Al cargar cada empresa el transformer descifra (o deja el texto plano legado);
+  // al volver a guardar, el transformer cifra. Idempotente.
+  async reencriptarCredenciales() {
+    const empresas = await this.dataSource.manager.find(Empresa);
+    let procesadas = 0;
+    for (const empresa of empresas) {
+      if (empresa.sol_clave || empresa.sunat_client_secret) {
+        await this.dataSource.manager.save(empresa);
+        procesadas++;
+      }
+    }
+    return {
+      mensaje: 'Credenciales SUNAT re-encriptadas en reposo',
+      empresas_procesadas: procesadas,
+    };
+  }
+
   // KPIs globales del sistema
   async kpisGlobales() {
     const totalEmpresas = await this.dataSource.getRepository(Empresa).count();

@@ -6,6 +6,14 @@ import { join } from 'path';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
+  // Aviso si falta la clave de cifrado de credenciales SUNAT en reposo.
+  if (!process.env.ENCRYPTION_KEY) {
+    console.warn(
+      '⚠️  ENCRYPTION_KEY no está definida: las credenciales SUNAT (clave SOL, ' +
+        'client_secret) se guardarán en TEXTO PLANO. Define ENCRYPTION_KEY para cifrarlas.',
+    );
+  }
+
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   // SEGURIDAD: cabeceras HTTP

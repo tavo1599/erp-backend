@@ -13,6 +13,7 @@ import { Conductor } from '../conductores/entities/conductor.entity';
 import { SerieComprobante } from '../ventas/entities/serie-comprobante.entity';
 import { CreateGuiaRemisionDto } from './dto/create-guia-remision.dto';
 import { AuditoriaService } from '../auditoria/auditoria.service';
+import { cabecerasMotor } from '../common/motor-java.util';
 import { fechaActualLima } from '../common/utils/fecha.util';
 
 interface ContextoUsuario {
@@ -253,7 +254,7 @@ const motorJavaUrl = process.env.JAVA_MOTOR_URL || 'http://localhost:8089';
         this.httpService.post(
           `${motorJavaUrl}/api/guias/emitir`,
           payloadJava,
-          { timeout: 60000 }, // las guías pueden tardar más (polling de ticket)
+          { timeout: 60000, headers: cabecerasMotor() }, // las guías pueden tardar más (polling de ticket)
         ),
       );
       sunatData = respuestaJava.data;

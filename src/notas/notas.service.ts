@@ -10,6 +10,7 @@ import { SerieComprobante } from '../ventas/entities/serie-comprobante.entity';
 import { Empresa } from '../empresas/entities/empresa.entity';
 import { Producto } from '../productos/entities/producto.entity';
 import { fechaActualLima, horaActualLima } from '../common/utils/fecha.util';
+import { cabecerasMotor } from '../common/motor-java.util';
 
 interface ItemNota {
   producto: Producto;
@@ -137,7 +138,9 @@ const horaActual = horaActualLima();
     const motorJavaUrl = process.env.JAVA_MOTOR_URL || 'http://localhost:8089';
     try {
       const resp = await firstValueFrom(
-        this.httpService.post(`${motorJavaUrl}/api/notas/emitir`, payloadJava),
+        this.httpService.post(`${motorJavaUrl}/api/notas/emitir`, payloadJava, {
+          headers: cabecerasMotor(),
+        }),
       );
       sunatData = resp.data;
       sunatAcepto = sunatData?.success === true && sunatData?.sunatResponseCode === '0';
