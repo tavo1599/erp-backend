@@ -24,6 +24,11 @@ export class CreateProductoDto {
   codigo_sunat?: string;
 
   @IsString()
+  @MaxLength(60)
+  @IsOptional()
+  codigo_barras?: string;
+
+  @IsString()
   @MaxLength(20)
   @IsOptional()
   unidad_medida?: string;

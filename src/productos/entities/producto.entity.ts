@@ -12,6 +12,10 @@ export class Producto {
   @Column({ type: 'varchar', nullable: true })
   codigo_sunat: string;
 
+  // Código de barras / interno para escanear en el Punto de Venta.
+  @Column({ type: 'varchar', length: 60, nullable: true })
+  codigo_barras: string | null;
+
   @Column({ type: 'varchar' })
   nombre: string;
 
