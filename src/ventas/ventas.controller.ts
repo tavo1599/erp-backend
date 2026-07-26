@@ -7,6 +7,7 @@ import { CreateVentaDto } from './dto/create-venta.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermisoGuard } from '../permisos/permiso.guard';
 import { Permiso } from '../permisos/permiso.decorator';
+import { MailService, type AdjuntoCorreo } from '../common/mail/mail.service';
 
 @UseGuards(JwtAuthGuard, PermisoGuard)
 @Controller('ventas')
@@ -14,6 +15,7 @@ export class VentasController {
   constructor(
     private readonly ventasService: VentasService,
     private readonly pdfService: PdfService,
+    private readonly mailService: MailService,
   ) {}
 
   @Permiso('crear_ventas')
@@ -185,5 +187,54 @@ marcarParaAnulacion(@Param('id') id: string, @Request() req: any) {
   });
 }
 
+  // Enviar el comprobante (PDF + XML + CDR) por correo al cliente
+  @Permiso('descargar_pdf_xml')
+  @Post(':id/enviar-correo')
+  async enviarCorreo(
+    @Param('id') id: string,
+    @Body() body: { correo: string },
+    @Request() req: any,
+  ) {
+    const empresaId = req.user.empresa_id;
 
+    const datos = await this.ventasService.obtenerVentaParaPdf(id, empresaId);
+    const pdf = await this.pdfService.generarA4(datos);
+    const nombre = datos.venta.nombre_archivo || 'comprobante';
+    const comprobante = `${datos.venta.serie}-${String(datos.venta.correlativo).padStart(8, '0')}`;
+
+    const adjuntos: AdjuntoCorreo[] = [
+      { filename: `${nombre}.pdf`, content: pdf, contentType: 'application/pdf' },
+    ];
+
+    const completa = await this.ventasService.obtenerVentaCompleta(id, empresaId);
+    if (completa.sunat_xml_base64) {
+      adjuntos.push({
+        filename: `${nombre}.xml`,
+        content: Buffer.from(completa.sunat_xml_base64, 'base64'),
+        contentType: 'application/xml',
+      });
+    }
+    if (completa.sunat_cdr_base64) {
+      adjuntos.push({
+        filename: `R-${nombre}.zip`,
+        content: Buffer.from(completa.sunat_cdr_base64, 'base64'),
+        contentType: 'application/zip',
+      });
+    }
+
+    const razonEmpresa = datos.empresa.razon_social;
+    const html = `
+      <p>Estimado cliente,</p>
+      <p>Adjuntamos su comprobante electrónico <strong>${comprobante}</strong> emitido por
+      <strong>${razonEmpresa}</strong>.</p>
+      <p>Gracias por su preferencia.</p>
+    `;
+
+    return this.mailService.enviar(
+      body.correo,
+      `Comprobante ${comprobante} - ${razonEmpresa}`,
+      html,
+      adjuntos,
+    );
+  }
 }

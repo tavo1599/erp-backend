@@ -5,10 +5,39 @@ import { Venta } from '../ventas/entities/venta.entity';
 import { VentaDetalle } from '../ventas/entities/venta-detalle.entity';
 import { Compra } from '../compras/entities/compra.entity';
 import { Producto } from '../productos/entities/producto.entity';
+import { Almacen } from '../almacenes/entities/almacen.entity';
 
 @Injectable()
 export class DashboardService {
   constructor(private readonly dataSource: DataSource) {}
+
+  // Ventas del mes actual agrupadas por almacén de origen
+  async ventasPorAlmacen(empresaId: string) {
+    const hoy = new Date();
+    const primerDia = new Date(hoy.getFullYear(), hoy.getMonth(), 1)
+      .toISOString()
+      .split('T')[0];
+
+    const filas = await this.dataSource
+      .getRepository(Venta)
+      .createQueryBuilder('v')
+      .leftJoin(Almacen, 'a', 'a.id = v.almacen_id')
+      .select("COALESCE(a.nombre, 'Sin almacén')", 'almacen')
+      .addSelect('SUM(v.importe_total)', 'total')
+      .addSelect('COUNT(*)', 'cantidad')
+      .where('v.empresa_id = :empresaId', { empresaId })
+      .andWhere('v.estado_sunat != :anulada', { anulada: 'ANULADA' })
+      .andWhere('DATE(v.fecha_emision) >= :desde', { desde: primerDia })
+      .groupBy('a.nombre')
+      .orderBy('total', 'DESC')
+      .getRawMany();
+
+    return filas.map((f) => ({
+      almacen: f.almacen,
+      total: Number(f.total),
+      cantidad: Number(f.cantidad),
+    }));
+  }
 
   // Resumen general del mes actual
   async resumen(empresaId: string) {

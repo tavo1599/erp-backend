@@ -310,7 +310,9 @@ const horaActual = horaActualLima();
       correlativo: correlativoTentativo,
       fechaEmision: fechaActual,
       horaEmision: horaActual,
-      tipoOperacion: '0101',
+      // Catálogo 51: 1001 = Operación Sujeta a Detracción; 0101 = Venta interna.
+      // SUNAT exige 1001 cuando la factura lleva detracción.
+      tipoOperacion: tieneDetraccion ? '1001' : '0101',
       moneda: 'PEN',
       formaPago: 'Contado',
       clienteTipoDocumento: tipoDocCliente,

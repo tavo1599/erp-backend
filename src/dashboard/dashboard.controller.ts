@@ -42,6 +42,11 @@ export class DashboardController {
     return this.dashboardService.kpis(req.user.empresa_id);
   }
 
+  @Get('ventas-por-almacen')
+  ventasPorAlmacen(@Request() req) {
+    return this.dashboardService.ventasPorAlmacen(req.user.empresa_id);
+  }
+
   @Get('rentabilidad')
   rentabilidad(@Request() req, @Query('limite') limite?: string) {
     return this.dashboardService.rentabilidadProductos(

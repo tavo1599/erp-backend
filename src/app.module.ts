@@ -29,6 +29,12 @@ import { VehiculosModule } from './vehiculos/vehiculos.module';
 import { ConductoresModule } from './conductores/conductores.module';
 import { DireccionesTrasladoModule } from './direcciones-traslado/direcciones-traslado.module';
 import { GuiasRemisionModule } from './guias-remision/guias-remision.module';
+import { CotizacionesModule } from './cotizaciones/cotizaciones.module';
+import { ReportesModule } from './reportes/reportes.module';
+import { TransferenciasModule } from './transferencias/transferencias.module';
+import { RetencionesModule } from './retenciones/retenciones.module';
+import { PercepcionesModule } from './percepciones/percepciones.module';
+import { CajaModule } from './caja/caja.module';
 import { PermisosModule } from './permisos/permisos.module';
 import { StockModule } from './stock/stock.module';
 @Module({
@@ -101,6 +107,18 @@ import { StockModule } from './stock/stock.module';
     AlmacenesModule,
 
     StockModule,
+
+    CotizacionesModule,
+
+    ReportesModule,
+
+    TransferenciasModule,
+
+    RetencionesModule,
+
+    PercepcionesModule,
+
+    CajaModule,
 
     SunatConsultasModule,
     ThrottlerModule.forRoot([

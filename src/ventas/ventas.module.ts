@@ -19,6 +19,7 @@ import { AuditoriaModule } from '../auditoria/auditoria.module';
 import { PermisosModule } from '../permisos/permisos.module';
 import { StockModule } from '../stock/stock.module';
 import { Almacen } from '../almacenes/entities/almacen.entity';
+import { MailModule } from '../common/mail/mail.module';
 
 @Module({
   imports: [
@@ -30,8 +31,10 @@ import { Almacen } from '../almacenes/entities/almacen.entity';
     AuditoriaModule,
     PermisosModule,
     StockModule,
+    MailModule,
   ],
   controllers: [VentasController],
   providers: [VentasService, PdfService],
+  exports: [VentasService],
 })
 export class VentasModule {}
