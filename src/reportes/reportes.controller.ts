@@ -69,4 +69,34 @@ export class ReportesController {
   ) {
     return this.reportesService.reporteCompras(req.user.empresa_id, desde, hasta);
   }
+
+  @Permiso('ver_ventas')
+  @Get('igv')
+  igv(@Query('desde') desde: string, @Query('hasta') hasta: string, @Request() req: any) {
+    return this.reportesService.resumenIgv(req.user.empresa_id, desde, hasta);
+  }
+
+  @Permiso('ver_ventas')
+  @Get('rentabilidad')
+  rentabilidad(@Query('desde') desde: string, @Query('hasta') hasta: string, @Request() req: any) {
+    return this.reportesService.rentabilidad(req.user.empresa_id, desde, hasta);
+  }
+
+  @Permiso('ver_ventas')
+  @Get('tributario')
+  tributario(@Query('desde') desde: string, @Query('hasta') hasta: string, @Request() req: any) {
+    return this.reportesService.resumenTributario(req.user.empresa_id, desde, hasta);
+  }
+
+  @Permiso('ver_ventas')
+  @Get('formas-pago')
+  formasPago(@Query('desde') desde: string, @Query('hasta') hasta: string, @Request() req: any) {
+    return this.reportesService.ventasPorFormaPago(req.user.empresa_id, desde, hasta);
+  }
+
+  @Permiso('ver_ventas')
+  @Get('comparativo')
+  comparativo(@Query('periodo') periodo: string, @Request() req: any) {
+    return this.reportesService.comparativo(req.user.empresa_id, periodo);
+  }
 }
