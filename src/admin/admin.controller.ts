@@ -1,5 +1,5 @@
 // src/admin/admin.controller.ts
-import { Controller, Get, Post, Patch, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, Request, UseGuards } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -39,6 +39,30 @@ export class AdminController {
   @Get('kpis')
   kpis() {
     return this.adminService.kpisGlobales();
+  }
+
+  @Get('dashboard')
+  dashboard() {
+    return this.adminService.dashboardSuperAdmin();
+  }
+
+  @Post('empresas/:id/pagos')
+  registrarPago(
+    @Param('id') id: string,
+    @Body() body: { monto: number; meses?: number; metodo?: string; notas?: string },
+    @Request() req: any,
+  ) {
+    return this.adminService.registrarPago(id, body, req.user.email);
+  }
+
+  @Get('empresas/:id/pagos')
+  listarPagos(@Param('id') id: string) {
+    return this.adminService.listarPagos(id);
+  }
+
+  @Post('empresas/:id/recordatorio')
+  enviarRecordatorio(@Param('id') id: string) {
+    return this.adminService.enviarRecordatorioPago(id);
   }
 
   // Utilidad de una sola vez: re-encripta las credenciales SUNAT que estén en
